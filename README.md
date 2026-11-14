@@ -134,7 +134,7 @@ The Java file is kept as plain ASCII, so non-English text there is written as `\
 
 ## Important
 
-EmojiTalk is a communication aid, not a medical or safety device. Do not rely on the siren or the contact list as the only way to get help in an emergency.
+Emoji-to-Speech is a communication aid, not a medical or safety device. Do not rely on the siren or the contact list as the only way to get help in an emergency.
 
 ## Project files
 
