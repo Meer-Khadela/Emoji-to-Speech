@@ -36,7 +36,7 @@ I found that a standard AAC device paired with an eye tracker costs approximatel
 **Calm mode**
 - Tapping a fourth card clears the sentence, plays soft generated music and speaks a calming line in a second voice
 
-**Emergency (🚨 button, top left)**
+**Emergency (siren button, top left)**
 - Siren with three sounds (rising and falling, fast, beeping) that starts quietly and rises to full loudness over 8 seconds
 - Up to five emergency contacts, each with a Call button that opens the phone dialer
 
