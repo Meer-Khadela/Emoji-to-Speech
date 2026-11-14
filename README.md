@@ -52,7 +52,7 @@ Put `index.html` and `EmojiWebServer.java` in the same folder, then from that fo
 
 ```bash
 javac EmojiWebServer.java
-Have the Gemini API key included
+java EmojiWebServer
 ```
 
 Open <http://localhost:8080> in the browser.
