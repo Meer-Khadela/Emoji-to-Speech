@@ -74,7 +74,7 @@ Then run `java EmojiWebServer`.
 | `GEMINI_API_KEY` | Gemini API key. Without it, sentences are built locally. | not set |
 | `GEMINI_MODEL` | Model names, comma-separated, tried in order | `gemini-3.7-flash,gemini-3.8-flash` |
 
-The top of ⚙️ Settings shows whether sentences are coming from the AI:
+The top of Settings shows whether sentences are coming from the AI:
 
 - 🟢 AI sentences are working
 - 🟠 AI is off (no key), Gemini did not answer, or the server could not be reached
