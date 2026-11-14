@@ -6,7 +6,7 @@ It is two files: a single web page (`index.html`) and a small Java server (`Emoj
 
 ## Why I built this
 
-I spent four months as a trainee teacher at a special school, where I met students with many different needs. Some of them had motor impairments, and some could not speak. I saw how hard it was for these students to tell anyone what they needed, so I started looking for ways to help them.
+I spent four months as a trainee teacher at a special school, where I met students with many different needs. Some of them had motor impairments, and some could not speak properly. I saw how hard it was for these students to tell anyone what they needed, so I started looking for ways to help them.
 
 I found that a standard AAC device paired with an eye tracker costs approximately ₹3,00,000 to ₹5,00,000 (about $3,100 to $5,200) in India, which a small special school simply cannot afford. So I built this to do the same job on a budget of ₹0.
 
