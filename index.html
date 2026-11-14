@@ -1,0 +1,2710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EmojiTalk - Emotion Voice AAC</title>
+<script>
+  try {
+    var p = JSON.parse(localStorage.getItem("emojitalk.prefs.v1") || "null"), t = p && p.theme;
+    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+<style>
+  /* Light theme (default). The tone buttons change --accent and --bg from the script. */
+  :root { color-scheme:light; --accent:#1d4ed8; --bg:#f0f4f8; --text:#1e293b; --line:#94a3b8;
+          --surface:#fff; --text2:#334155; --muted:#475569; --danger:#b91c1c; --inset:#f1f5f9;
+          --on-accent:#fff; --focus:#0b5fff; --scroll-bg:rgba(255,255,255,.92);
+          --calm-line:#0f766e; --calm-bg:#f0fdfa; }
+  /* Dark theme: set on <html data-theme="dark"> by the Appearance setting (or the system setting). */
+  :root[data-theme="dark"] { color-scheme:dark; --accent:#60a5fa; --bg:#000; --text:#f5f5f5; --line:#525252;
+          --surface:#0a0a0a; --text2:#d4d4d4; --muted:#a3a3a3; --danger:#f87171; --inset:#000;
+          --on-accent:#000; --focus:#93c5fd; --scroll-bg:rgba(10,10,10,.92);
+          --calm-line:#2dd4bf; --calm-bg:#03110f; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; padding:68px 16px 16px; background:var(--bg); color:var(--text); text-align:center;
+         font-family:'Segoe UI',Tahoma,Geneva,Verdana,'Nirmala UI',sans-serif; transition:background-color .3s; }
+  button, select { font:inherit; color:inherit; cursor:pointer; }
+  button:focus-visible, select:focus-visible { outline:4px solid var(--focus); outline-offset:2px; }
+
+  .tones { max-width:900px; margin:0 auto 14px; display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+  @media (max-width:700px) { .tones { grid-template-columns:repeat(3,1fr); } }
+  .tone { background:var(--surface); border:3px solid var(--line); border-radius:14px; padding:8px 6px;
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+          font-size:.95rem; font-weight:700; color:var(--text2); }
+  .tone .ti { font-size:1.9rem; line-height:1.1; }
+  .tone[aria-pressed="true"] { color:var(--on-accent); }
+
+  .bar { max-width:900px; margin:0 auto 20px; background:var(--surface); border:4px solid var(--accent);
+         border-radius:16px; padding:14px 18px 20px; position:relative; overflow:hidden;
+         display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
+         box-shadow:0 4px 6px rgba(0,0,0,.05); transition:border-color .3s; }
+  .out { text-align:left; flex:1 1 320px; min-width:0; }
+  #badge { display:none; font-size:.85rem; font-weight:700; padding:3px 10px; border-radius:999px;
+           background:color-mix(in srgb, var(--accent) 14%, var(--surface)); color:var(--accent); margin-bottom:6px; }
+  #strip { font-size:2.8rem; min-height:54px; letter-spacing:6px; overflow-wrap:anywhere; }
+  #sentence { font-size:1.6rem; font-weight:700; overflow-wrap:anywhere; }
+  .ctrl { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .ctrl .speak { font-size:1.4rem; padding:18px 28px; }   /* the main button is the biggest */
+  .ctrl button { font-size:1.05rem; padding:12px 16px; border:none; border-radius:10px; font-weight:700; color:#fff; }
+  .speak { background:#15803d; } .undo { background:#b45309; } .clear { background:#b91c1c; }
+  /* Phones: the three buttons share one row so the sentence box stays short. */
+  @media (max-width:520px) {
+    .bar { padding:10px 12px 16px; }
+    #strip { font-size:2.2rem; min-height:44px; } #sentence { font-size:1.3rem; }
+    .ctrl { width:100%; flex-wrap:nowrap; }
+    .ctrl button { flex:1; padding:12px 4px; font-size:.95rem; }
+    .ctrl .speak { flex:1.7; padding:14px 6px; font-size:1.2rem; }
+  }
+  /* On screens tall enough, the sentence stays in view while the cards scroll underneath. */
+  @media (min-height:700px) { .bar { position:sticky; top:8px; z-index:20; } }
+  /* The two corner buttons are pinned. On screens where they would sit over the cards, a plain strip is kept
+     behind them and the sentence box stops just below it, so nothing is ever hidden underneath a button. */
+  @media (max-width:1060px) {
+    body::before { content:""; position:fixed; top:0; left:0; right:0; height:66px; background:var(--bg); z-index:25; }
+    .bar { top:66px; }
+  }
+  #timer { position:absolute; left:0; bottom:0; height:6px; width:0; background:var(--accent); }
+
+  .menu-btn { position:fixed; top:12px; right:12px; z-index:30; width:48px; height:48px; font-size:1.6rem; line-height:1;
+              background:var(--surface); border:3px solid var(--line); border-radius:14px; box-shadow:0 2px 6px rgba(0,0,0,.12); }
+  .menu-btn[aria-expanded="true"] { border-color:var(--accent); }
+  /* Emergency: button at the top left, panel underneath it. */
+  .emerg-btn { right:auto; left:12px; border-color:#b91c1c; }
+  .emerg-btn.on { background:#b91c1c; animation:pulse 1s ease-in-out infinite; }
+  .menu.emerg { right:auto; left:12px; border-color:var(--danger); }
+  body.dwelling .menu.emerg { right:auto; left:136px; }
+  .siren-btn { font-size:1.35rem; font-weight:800; padding:18px 12px; border:none; border-radius:12px; background:#b91c1c; color:#fff; }
+  .siren-btn.on { background:var(--text); color:var(--surface); }
+  .menu input[type="text"], .menu input[type="tel"] { width:100%; padding:10px; font:inherit; color:inherit;
+          border:2px solid var(--line); border-radius:10px; background:var(--surface); }
+  .menu input[aria-invalid="true"] { border-color:var(--danger); }
+  .contact { display:flex; align-items:center; gap:8px; border:2px solid var(--line); border-radius:12px; padding:8px 10px; }
+  .contact .who { flex:1; min-width:0; overflow-wrap:anywhere; font-weight:700; }
+  .contact .who span { display:block; font-weight:400; color:var(--muted); }
+  .contact .call { padding:12px 14px; border:none; border-radius:10px; background:#15803d; color:#fff; font-weight:700; white-space:nowrap; }
+  .contact .del { width:40px; height:40px; border:2px solid var(--line); border-radius:10px; background:var(--surface); font-weight:700; }
+  #contactForm, #customForm { display:flex; flex-direction:column; gap:6px; }
+  #contactNote, #sirenNote { color:var(--muted); font-size:.9rem; }
+  #contactNote, #customNote { font-weight:700; }
+  #customNote { color:var(--muted); font-size:.9rem; }
+  #aiStatus { color:var(--text2); font-size:.9rem; font-weight:700; }
+  #mcEmoji { font-size:1.8rem; text-align:center; }
+  .contact .ce2 { font-size:1.8rem; }
+  .reset-btn { padding:10px 14px; font-weight:700; background:var(--surface); color:var(--danger); border:2px solid var(--danger); border-radius:10px; }
+  .chk { display:flex; align-items:center; gap:10px; font-weight:700; color:var(--text2); }
+  .chk input { width:24px; height:24px; }
+  .menu button.small { padding:10px 14px; font-weight:700; background:var(--surface); border:2px solid var(--line); border-radius:10px; }
+  #gazeMsg, #sensNote { color:var(--muted); font-size:.9rem; }
+  #gazeDebug { color:var(--text2); font-size:.8rem; font-family:Consolas,monospace; background:var(--inset); border-radius:8px; padding:6px 8px; }
+  #dwellRing { position:fixed; z-index:50; pointer-events:none; border:5px solid var(--accent); border-radius:20px;
+               background:linear-gradient(to right, color-mix(in srgb, var(--accent) 35%, transparent) calc(var(--p,0) * 100%), transparent 0); }
+  #gazeDot { position:fixed; z-index:200; width:36px; height:36px; margin:-18px 0 0 -18px; border-radius:50%;
+             background:rgba(239,68,68,.75); border:4px solid #fff; box-shadow:0 0 0 2px #b91c1c, 0 2px 8px rgba(0,0,0,.4);
+             pointer-events:none; }
+  #gazeDot.waiting { background:rgba(100,116,139,.75); box-shadow:0 0 0 2px #334155, 0 2px 8px rgba(0,0,0,.4); }
+  #calib { position:fixed; inset:0; z-index:100; background:rgba(15,23,42,.93); color:#fff; display:flex;
+           align-items:center; justify-content:center; text-align:center; font-size:1.3rem; padding:24px; }
+  #calibDot { position:absolute; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; background:#ef4444;
+             border:5px solid #fff; animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.3); } }
+  body.big .tones { gap:16px; }
+  body.big .tone { padding:14px 8px; font-size:1.15rem; }
+  body.big .tone .ti { font-size:2.6rem; }
+  body.big .ctrl button { font-size:1.4rem; padding:20px 26px; }
+  body.big .ctrl .speak { font-size:1.8rem; padding:26px 36px; }
+  body.big .grid { grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:28px; }
+  body.big .card { padding:30px 14px; }
+  body.big .emoji { font-size:6rem; }
+  body.big .label { font-size:1.7rem; }
+  body.big .combo { padding:18px 24px; min-width:190px; }
+  body.big .combo .ce { font-size:2.8rem; }
+  body.big .combo .cl { font-size:1.2rem; }
+  #gazeVideo { position:fixed; bottom:12px; left:12px; width:160px; border-radius:10px; border:3px solid #fff;
+               box-shadow:0 2px 8px rgba(0,0,0,.35); transform:scaleX(-1); opacity:.9; z-index:5; pointer-events:none; }
+  .scroll-btn { position:fixed; top:calc(50% - 56px); z-index:40; width:112px; height:112px; font-size:3rem; font-weight:700;
+                color:var(--accent); background:var(--scroll-bg); border:4px solid var(--accent); border-radius:20px; }
+  .scroll-btn.hot { color:var(--on-accent); background:var(--accent); }
+  #scrollUp { left:12px; } #scrollDown { right:12px; }
+  body.dwelling { padding-left:136px; padding-right:136px; }
+  body.dwelling .menu { right:136px; width:min(340px, calc(100vw - 284px)); }
+  .menu { position:fixed; top:68px; right:12px; z-index:30; width:min(340px, calc(100vw - 24px));
+          max-height:calc(100vh - 84px); max-height:calc(100dvh - 84px); overflow-y:auto; text-align:left;
+          background:var(--surface); border:3px solid var(--accent); border-radius:16px; padding:14px 16px 16px;
+          box-shadow:0 8px 24px rgba(0,0,0,.18); display:flex; flex-direction:column; gap:14px; }
+  .menu h2 { margin:0; font-size:1.15rem; color:var(--text2); }
+  .opts { display:flex; flex-direction:column; gap:6px; }
+  .opts label { font-weight:700; color:var(--text2); }
+  select { width:100%; padding:10px; border:2px solid var(--line); border-radius:10px; background:var(--surface); }
+  #voiceNote { color:var(--muted); font-size:.9rem; }
+  #note { max-width:900px; margin:0 auto 12px; color:var(--danger); font-weight:700; }
+
+  .combos { max-width:900px; margin:0 auto; display:flex; flex-wrap:wrap; gap:10px; }
+  .combo { display:flex; flex-direction:column; align-items:center; gap:2px; background:var(--surface); border:3px solid var(--line);
+           border-radius:16px; padding:10px 16px; min-width:130px; transition:transform .1s, border-color .2s; }
+  .combo:active { transform:scale(.95); border-color:var(--accent); }
+  .combo .ce { font-size:2rem; }
+  .combo .cl { font-weight:700; font-size:.95rem; color:var(--text2); }
+  .pers-tools { max-width:900px; margin:14px auto 0; display:flex; flex-wrap:wrap; gap:10px; align-items:center; text-align:left; color:var(--muted); font-size:.95rem; }
+  .pers-tools button { padding:8px 14px; border:2px solid var(--line); border-radius:10px; background:var(--surface); font-weight:700; }
+  h2.group { max-width:900px; margin:28px auto 12px; text-align:left; font-size:1.3rem; color:var(--text2);
+             display:flex; align-items:center; gap:10px; }
+  h2.group[class*=" g"]::before { content:""; width:18px; height:18px; border-radius:5px; background:var(--g); }
+  /* No reserved gap: the first heading sits right under the sentence box, whether or not there are favorites yet. */
+  #personal > h2.group:first-child, #personal:empty + #grid > h2.group:first-child { margin-top:4px; }
+  /* One color per group, so the same kind of card always looks the same. */
+  .g1 { --g:#2563eb; } .g2 { --g:#16a34a; } .g3 { --g:#d97706; } .g4 { --g:#9333ea; } .g5 { --g:#0d9488; }
+  :root[data-theme="dark"] .g1 { --g:#60a5fa; } :root[data-theme="dark"] .g2 { --g:#4ade80; }
+  :root[data-theme="dark"] .g3 { --g:#fbbf24; } :root[data-theme="dark"] .g4 { --g:#c084fc; }
+  :root[data-theme="dark"] .g5 { --g:#2dd4bf; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; max-width:900px; margin:0 auto; }
+  .card { position:relative; background:var(--surface); border:3px solid var(--line); border-radius:20px; padding:18px 10px;
+          user-select:none; transition:transform .1s, border-color .2s; }
+  .card[class*=" g"] { background:color-mix(in srgb, var(--g) 12%, var(--surface));
+                       border-color:color-mix(in srgb, var(--g) 55%, var(--surface)); }
+  .card:active { transform:scale(.95); border-color:var(--accent); }
+  /* A picked card gets a thick frame and a tick, so it is obvious what is already in the sentence. */
+  .card.picked { border-color:var(--text); box-shadow:0 0 0 4px var(--text); }
+  .card.picked::after { content:"\2713"; position:absolute; top:8px; right:8px; width:36px; height:36px; border-radius:50%;
+                        background:var(--text); color:var(--surface); font-size:1.4rem; font-weight:900; line-height:36px; }
+  .emoji { font-size:4.6rem; display:block; margin-bottom:8px; }
+  .label { font-size:1.45rem; font-weight:700; color:var(--text); overflow-wrap:anywhere; }
+  .bar.calm { border-color:var(--calm-line); background:var(--calm-bg); }
+  .bar.calm #strip { animation:breathe 6s ease-in-out infinite; transform-origin:left center; }
+  @keyframes breathe { 0%,100% { transform:scale(1); } 50% { transform:scale(1.25); } }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } .card:active { transform:none; } }
+</style>
+</head>
+<body>
+
+<div class="tones" id="tones" role="group" aria-label="Voice tone" data-ta="voiceToneAria"></div>
+
+<section class="bar" id="box" aria-label="Your sentence" data-ta="sentenceAria">
+  <div class="out">
+    <div id="badge"></div>
+    <div id="strip" aria-hidden="true"></div>
+    <div id="sentence" role="status" aria-live="polite"></div>
+  </div>
+  <div class="ctrl">
+    <button class="speak" id="speakBtn" type="button" data-t="speak">🔊 Speak</button>
+    <button class="undo" id="undoBtn" type="button" data-t="undo">⬅️ Undo</button>
+    <button class="clear" id="clearBtn" type="button" data-t="clear">❌ Clear</button>
+  </div>
+  <div id="timer"></div>
+</section>
+
+<button class="menu-btn emerg-btn" id="emergBtn" type="button" aria-label="Emergency" data-ta="emergency" aria-haspopup="true"
+        aria-expanded="false" aria-controls="emerg">🚨</button>
+
+<div class="menu emerg" id="emerg" role="group" aria-label="Emergency" data-ta="emergency" hidden>
+  <h2>🚨 <span data-t="emergency">Emergency</span></h2>
+  <div class="opts">
+    <button class="siren-btn" id="sirenBtn" type="button">🔊 Start siren</button>
+    <div id="sirenNote" data-t="sirenNote">Turn the device volume up. The siren starts quietly, gets louder, and plays until you stop it.</div>
+    <label for="sirenSound" data-t="sirenSound">Siren sound</label>
+    <select id="sirenSound">
+      <option value="wail" selected data-t="sn_wail">Siren (rising and falling)</option>
+      <option value="yelp" data-t="sn_yelp">Fast siren</option>
+      <option value="beep" data-t="sn_beep">Beeping alarm</option>
+    </select>
+  </div>
+  <div class="opts">
+    <label data-t="contacts">Emergency contacts</label>
+    <div class="opts" id="contactList"></div>
+    <div id="contactNote"></div>
+    <div id="contactForm">
+      <label for="cName" data-t="cName">Name</label>
+      <input type="text" id="cName" maxlength="30" autocomplete="off">
+      <label for="cPhone" data-t="cPhone">Phone number</label>
+      <input type="tel" id="cPhone" maxlength="20" inputmode="tel" autocomplete="off">
+      <button class="small" id="cAddBtn" type="button" data-t="cAdd">➕ Add contact</button>
+    </div>
+  </div>
+</div>
+
+<button class="menu-btn" id="menuBtn" type="button" aria-label="Settings" data-ta="settingsAria" aria-haspopup="true"
+        aria-expanded="false" aria-controls="menu">⚙️</button>
+
+<div class="menu" id="menu" role="group" aria-label="Settings" data-ta="settingsAria" hidden>
+  <h2 data-t="settings">⚙️ Settings</h2>
+  <div id="aiStatus" hidden></div>
+  <div class="opts">
+    <label for="langSel">Language / भाषा / Idioma / Langue</label>
+    <select id="langSel">
+      <option value="en">English</option>
+      <option value="hi">हिन्दी (Hindi)</option>
+      <option value="es">Español (Spanish)</option>
+      <option value="fr">Français (French)</option>
+    </select>
+  </div>
+  <div class="opts">
+    <label for="themeSel" data-t="themeLbl">Appearance</label>
+    <select id="themeSel">
+      <option value="system" selected data-t="themeSystem">Same as system</option>
+      <option value="light" data-t="themeLight">Light</option>
+      <option value="dark" data-t="themeDark">Dark</option>
+    </select>
+  </div>
+  <div class="opts">
+    <label for="delay" data-t="delayLbl">Speak automatically after</label>
+    <select id="delay">
+      <option value="3" selected data-t="d3">3 seconds</option>
+      <option value="6" data-t="d6">6 seconds</option>
+      <option value="0" data-t="d0">Never (use the Speak button)</option>
+    </select>
+  </div>
+  <div class="opts" id="voiceOpts" hidden>
+    <label for="myVoice" data-t="myVoice">My voice</label>
+    <select id="myVoice"></select>
+    <label for="calmGuide" data-t="calmGuide">Calm guide voice</label>
+    <select id="calmGuide"></select>
+  </div>
+  <div id="voiceNote" hidden></div>
+  <div class="opts">
+    <label for="resetBtn" data-t="favorites">Favorites</label>
+    <button class="small" id="updateBtn" type="button" data-t="update">↻ Update now</button>
+    <button class="reset-btn" id="resetBtn" type="button" data-t="resetFav">Reset favorites</button>
+  </div>
+  <div class="opts">
+    <label data-t="myCards">My cards</label>
+    <div class="opts" id="customList"></div>
+    <div id="customNote"></div>
+    <div id="customForm">
+      <label for="mcEmoji" data-t="mcEmoji">Emoji (pick one from your keyboard)</label>
+      <input type="text" id="mcEmoji" maxlength="16" autocomplete="off">
+      <label for="mcName" data-t="cName">Name</label>
+      <input type="text" id="mcName" maxlength="24" autocomplete="off">
+      <label for="mcSay" data-t="mcSay">What it says (optional)</label>
+      <input type="text" id="mcSay" maxlength="80" autocomplete="off">
+      <button class="small" id="mcAddBtn" type="button" data-t="mcAdd">➕ Add card</button>
+    </div>
+    <button class="reset-btn" id="mcResetBtn" type="button" data-t="mcReset" hidden>Remove all my cards</button>
+  </div>
+  <div class="opts">
+    <label for="bigToggle" data-t="eyeHead">Eye tracker and head mouse</label>
+    <label class="chk"><input type="checkbox" id="bigToggle"> <span data-t="big">Large buttons</span></label>
+    <label for="selMode" data-t="selection">Selection</label>
+    <select id="selMode">
+      <option value="click" selected data-t="selClick">Click or tap</option>
+      <option value="dwell" data-t="selDwell">Dwell (hold the pointer on a button)</option>
+    </select>
+    <label for="dwellTime" data-t="dwellTime">Dwell time</label>
+    <select id="dwellTime">
+      <option value="1000" data-t="w1">1 second</option>
+      <option value="1500" selected data-t="w15">1.5 seconds</option>
+      <option value="2000" data-t="w2">2 seconds</option>
+      <option value="3000" data-t="w3">3 seconds</option>
+    </select>
+    <label class="chk"><input type="checkbox" id="gazeToggle"> <span data-t="webcam">Webcam eye tracking (private, on this device)</span></label>
+    <label for="gazeSens" data-t="sensLbl">Eye tracker sensitivity</label>
+    <select id="gazeSens">
+      <option value="normal" data-t="s_normal">Normal (fastest, most reactive)</option>
+      <option value="lower" selected data-t="s_lower">Lower (steadier)</option>
+      <option value="low" data-t="s_low">Low (much steadier)</option>
+      <option value="lowest" data-t="s_lowest">Lowest (very steady, slow)</option>
+    </select>
+    <div id="sensNote" data-t="sensNote">Lower sensitivity smooths shaky movement and ignores tiny eye twitches, but the dot reacts more slowly.</div>
+    <button class="small" id="calibBtn" type="button" data-t="calibBtn" hidden>🎯 Calibrate</button>
+    <div id="gazeMsg" hidden></div>
+    <div id="gazeDebug" hidden></div>
+  </div>
+</div>
+
+<button class="scroll-btn" id="scrollUp" type="button" aria-label="Scroll up" data-ta="scrollUpAria" hidden>▲</button>
+<button class="scroll-btn" id="scrollDown" type="button" aria-label="Scroll down" data-ta="scrollDownAria" hidden>▼</button>
+
+<div id="dwellRing" hidden></div>
+<div id="gazeDot" hidden></div>
+<video id="gazeVideo" autoplay playsinline muted hidden></video>
+<div id="calib" hidden>
+  <div><span data-t="calib1">Look at the red dot until it moves.</span><br><span data-t="calib2">Keep your head still. Tap anywhere to stop.</span></div>
+  <div id="calibDot"></div>
+</div>
+<div id="note" hidden></div>
+
+<div id="personal"></div>
+<div id="grid"></div>
+
+<script>
+  // ---------- Data ----------
+  // Used if /api/emojis can't be reached. Labels must match the server's VALID_EMOJIS list.
+  const DEFAULT_CARDS = [
+    {emoji:"💧",label:"Water",group:"Needs"},
+    {emoji:"🍎",label:"Hungry",group:"Needs"},
+    {emoji:"🚽",label:"Bathroom",group:"Needs"},
+    {emoji:"😴",label:"Tired",group:"Needs"},
+    {emoji:"🤕",label:"Hurt",group:"Needs"},
+    {emoji:"🤒",label:"Sick",group:"Needs"},
+    {emoji:"🆘",label:"Help",group:"Needs"},
+    {emoji:"👕",label:"Clothes",group:"Needs"},
+    {emoji:"👍",label:"Yes",group:"Answers"},
+    {emoji:"👎",label:"No",group:"Answers"},
+    {emoji:"➕",label:"More",group:"Answers"},
+    {emoji:"✅",label:"Done",group:"Answers"},
+    {emoji:"🛑",label:"Stop",group:"Answers"},
+    {emoji:"🥺",label:"Please",group:"Answers"},
+    {emoji:"🙏",label:"Thank you",group:"Answers"},
+    {emoji:"👋",label:"Hello",group:"Answers"},
+    {emoji:"😊",label:"Happy",group:"Feelings"},
+    {emoji:"😢",label:"Sad",group:"Feelings"},
+    {emoji:"😠",label:"Angry",group:"Feelings"},
+    {emoji:"😨",label:"Scared",group:"Feelings"},
+    {emoji:"🤔",label:"Confused",group:"Feelings"},
+    {emoji:"😂",label:"Funny",group:"Feelings"},
+    {emoji:"❤️",label:"Love",group:"Feelings"},
+    {emoji:"🤗",label:"Hug",group:"Feelings"},
+    {emoji:"🎉",label:"Celebrate",group:"Feelings"},
+    {emoji:"🏠",label:"Home",group:"Places and play"},
+    {emoji:"🏫",label:"School",group:"Places and play"},
+    {emoji:"🌻",label:"Garden",group:"Places and play"},
+    {emoji:"🎮",label:"Play",group:"Places and play"},
+    {emoji:"🚶",label:"Go",group:"Places and play"}
+  ];
+
+  // Tone names must match the server's VALID_EMOTIONS list. dcolor / dbg are the colors used in dark mode (the background stays pure black; the accent shows the tone).
+  const TONES = {
+    Calm:    {label:"Calm voice",      icon:"😐", pitch:1.00, rate:0.95, volume:0.70, color:"#1d4ed8", bg:"#f0f4f8", dcolor:"#60a5fa", dbg:"#000000"},
+    Happy:   {label:"Happy voice",     icon:"😊", pitch:1.30, rate:1.08, volume:0.75, color:"#15803d", bg:"#f0fdf4", dcolor:"#4ade80", dbg:"#000000"},
+    Excited: {label:"Excited voice",   icon:"🤩", pitch:1.35, rate:1.15, volume:0.80, color:"#a21caf", bg:"#fdf4ff", dcolor:"#e879f9", dbg:"#000000"},
+    Sad:     {label:"Sad voice",       icon:"😢", pitch:0.80, rate:0.80, volume:0.60, color:"#4338ca", bg:"#eef2ff", dcolor:"#a5b4fc", dbg:"#000000"},
+    Angry:   {label:"Angry voice",     icon:"😠", pitch:0.80, rate:1.12, volume:0.90, color:"#b91c1c", bg:"#fef2f2", dcolor:"#f87171", dbg:"#000000"},
+    Scared:  {label:"Scared / urgent", icon:"😨", pitch:1.40, rate:1.20, volume:0.90, color:"#b45309", bg:"#fffbeb", dcolor:"#fbbf24", dbg:"#000000"}
+  };
+
+  // ---------- Languages ----------
+  // Card labels stay English inside the app (the server and saved favorites use them); only the display text changes.
+  // LANGS: language settings. LABELS/GROUPS: card and heading text. POSS/NEGS/ALONES: local sentence pieces
+  // (used when the server can't be reached). I18N: every piece of interface text.
+  const LANGS = {
+  "en": {
+    "name": "English",
+    "tag": "en-US",
+    "first": "I ",
+    "join": " and I ",
+    "end": ".",
+    "endExcl": "!",
+    "exclOpen": "",
+    "yes": "Yes, please!",
+    "no": "No, thank you."
+  },
+  "hi": {
+    "name": "हिन्दी",
+    "tag": "hi-IN",
+    "first": "",
+    "join": " और ",
+    "end": "।",
+    "endExcl": "!",
+    "exclOpen": "",
+    "yes": "हाँ, कृपया!",
+    "no": "नहीं, धन्यवाद।"
+  },
+  "es": {
+    "name": "español",
+    "tag": "es-ES",
+    "first": "",
+    "join": " y ",
+    "end": ".",
+    "endExcl": "!",
+    "exclOpen": "¡",
+    "yes": "Sí, por favor.",
+    "no": "No, gracias."
+  },
+  "fr": {
+    "name": "français",
+    "tag": "fr-FR",
+    "first": "",
+    "join": " et ",
+    "end": ".",
+    "endExcl": "!",
+    "exclOpen": "",
+    "yes": "Oui, s'il te plaît !",
+    "no": "Non, merci."
+  }
+};
+  const LABELS = {
+  "en": {},
+  "hi": {
+    "Water": "पानी",
+    "Hungry": "भूख",
+    "Bathroom": "बाथरूम",
+    "Tired": "थकान",
+    "Hurt": "चोट",
+    "Sick": "बीमार",
+    "Help": "मदद",
+    "Yes": "हाँ",
+    "No": "नहीं",
+    "More": "और",
+    "Done": "हो गया",
+    "Stop": "रुको",
+    "Please": "कृपया",
+    "Thank you": "धन्यवाद",
+    "Hello": "नमस्ते",
+    "Happy": "खुश",
+    "Sad": "उदास",
+    "Angry": "गुस्सा",
+    "Scared": "डर",
+    "Confused": "उलझन",
+    "Funny": "मज़ेदार",
+    "Love": "प्यार",
+    "Hug": "गले लगना",
+    "Celebrate": "जश्न",
+    "Home": "घर",
+    "School": "स्कूल",
+    "Play": "खेल",
+    "Garden": "बगीचा",
+    "Clothes": "कपड़े",
+    "Go": "जाना"
+  },
+  "es": {
+    "Water": "Agua",
+    "Hungry": "Hambre",
+    "Bathroom": "Baño",
+    "Tired": "Cansancio",
+    "Hurt": "Dolor",
+    "Sick": "Enfermo",
+    "Help": "Ayuda",
+    "Yes": "Sí",
+    "No": "No",
+    "More": "Más",
+    "Done": "Listo",
+    "Stop": "Parar",
+    "Please": "Por favor",
+    "Thank you": "Gracias",
+    "Hello": "Hola",
+    "Happy": "Feliz",
+    "Sad": "Triste",
+    "Angry": "Enojo",
+    "Scared": "Miedo",
+    "Confused": "Confundido",
+    "Funny": "Gracioso",
+    "Love": "Amor",
+    "Hug": "Abrazo",
+    "Celebrate": "Celebrar",
+    "Home": "Casa",
+    "School": "Escuela",
+    "Play": "Jugar",
+    "Garden": "Jardín",
+    "Clothes": "Ropa",
+    "Go": "Ir"
+  },
+  "fr": {
+    "Water": "Eau",
+    "Hungry": "Faim",
+    "Bathroom": "Toilettes",
+    "Tired": "Fatigue",
+    "Hurt": "Mal",
+    "Sick": "Malade",
+    "Help": "Aide",
+    "Yes": "Oui",
+    "No": "Non",
+    "More": "Encore",
+    "Done": "Fini",
+    "Stop": "Stop",
+    "Please": "S'il te plaît",
+    "Thank you": "Merci",
+    "Hello": "Bonjour",
+    "Happy": "Content",
+    "Sad": "Triste",
+    "Angry": "Colère",
+    "Scared": "Peur",
+    "Confused": "Confus",
+    "Funny": "Drôle",
+    "Love": "Amour",
+    "Hug": "Câlin",
+    "Celebrate": "Fête",
+    "Home": "Maison",
+    "School": "École",
+    "Play": "Jouer",
+    "Garden": "Jardin",
+    "Clothes": "Vêtements",
+    "Go": "Aller"
+  }
+};
+  const GROUPS = {
+  "en": {},
+  "hi": {
+    "Needs": "ज़रूरतें",
+    "Answers": "जवाब",
+    "Feelings": "भावनाएँ",
+    "Places and play": "जगह और खेल",
+    "My cards": "मेरे कार्ड"
+  },
+  "es": {
+    "Needs": "Necesidades",
+    "Answers": "Respuestas",
+    "Feelings": "Sentimientos",
+    "Places and play": "Lugares y juegos",
+    "My cards": "Mis tarjetas"
+  },
+  "fr": {
+    "Needs": "Besoins",
+    "Answers": "Réponses",
+    "Feelings": "Émotions",
+    "Places and play": "Lieux et jeux",
+    "My cards": "Mes cartes"
+  }
+};
+  const POSS = {
+  "en": {
+    "Water": "want some water",
+    "Hungry": "am hungry",
+    "Bathroom": "need to use the bathroom",
+    "Tired": "am tired",
+    "Hurt": "am hurt",
+    "Sick": "feel sick",
+    "Help": "need help",
+    "More": "want more",
+    "Done": "am done",
+    "Happy": "am happy",
+    "Sad": "am sad",
+    "Angry": "am angry",
+    "Scared": "am scared",
+    "Confused": "am confused",
+    "Funny": "think that is funny",
+    "Love": "love you",
+    "Hug": "want a hug",
+    "Celebrate": "want to celebrate",
+    "Home": "want to go home",
+    "School": "want to go to school",
+    "Play": "want to play",
+    "Garden": "want to go to the garden",
+    "Clothes": "want to change my clothes",
+    "Go": "want to go"
+  },
+  "hi": {
+    "Water": "मुझे पानी चाहिए",
+    "Hungry": "मुझे भूख लगी है",
+    "Bathroom": "मुझे बाथरूम जाना है",
+    "Tired": "मुझे थकान हो रही है",
+    "Hurt": "मुझे चोट लगी है",
+    "Sick": "मेरी तबीयत ठीक नहीं है",
+    "Help": "मुझे मदद चाहिए",
+    "More": "मुझे और चाहिए",
+    "Done": "मेरा हो गया है",
+    "Happy": "मुझे खुशी हो रही है",
+    "Sad": "मुझे दुख हो रहा है",
+    "Angry": "मुझे गुस्सा आ रहा है",
+    "Scared": "मुझे डर लग रहा है",
+    "Confused": "मुझे समझ नहीं आ रहा",
+    "Funny": "मुझे यह मज़ेदार लग रहा है",
+    "Love": "मुझे तुमसे प्यार है",
+    "Hug": "मुझे गले लगना है",
+    "Celebrate": "मुझे जश्न मनाना है",
+    "Home": "मुझे घर जाना है",
+    "School": "मुझे स्कूल जाना है",
+    "Play": "मुझे खेलना है",
+    "Garden": "मुझे बगीचे में जाना है",
+    "Clothes": "मुझे कपड़े बदलने हैं",
+    "Go": "मुझे जाना है"
+  },
+  "es": {
+    "Water": "quiero agua",
+    "Hungry": "tengo hambre",
+    "Bathroom": "necesito ir al baño",
+    "Tired": "tengo sueño",
+    "Hurt": "me hice daño",
+    "Sick": "no me siento bien",
+    "Help": "necesito ayuda",
+    "More": "quiero más",
+    "Done": "ya terminé",
+    "Happy": "estoy feliz",
+    "Sad": "me siento triste",
+    "Angry": "tengo rabia",
+    "Scared": "tengo miedo",
+    "Confused": "no entiendo",
+    "Funny": "me parece gracioso",
+    "Love": "te quiero",
+    "Hug": "quiero un abrazo",
+    "Celebrate": "quiero celebrar",
+    "Home": "quiero ir a casa",
+    "School": "quiero ir a la escuela",
+    "Play": "quiero jugar",
+    "Garden": "quiero ir al jardín",
+    "Clothes": "quiero cambiarme de ropa",
+    "Go": "quiero ir"
+  },
+  "fr": {
+    "Water": "je veux de l'eau",
+    "Hungry": "j'ai faim",
+    "Bathroom": "je dois aller aux toilettes",
+    "Tired": "j'ai sommeil",
+    "Hurt": "je me suis fait mal",
+    "Sick": "je ne me sens pas bien",
+    "Help": "j'ai besoin d'aide",
+    "More": "j'en veux encore",
+    "Done": "j'ai fini",
+    "Happy": "je suis de bonne humeur",
+    "Sad": "j'ai de la peine",
+    "Angry": "je suis en colère",
+    "Scared": "j'ai peur",
+    "Confused": "je ne comprends pas",
+    "Funny": "je trouve ça drôle",
+    "Love": "je t'aime",
+    "Hug": "je veux un câlin",
+    "Celebrate": "je veux faire la fête",
+    "Home": "je veux rentrer à la maison",
+    "School": "je veux aller à l'école",
+    "Play": "je veux jouer",
+    "Garden": "je veux aller au jardin",
+    "Clothes": "je veux changer de vêtements",
+    "Go": "je veux y aller"
+  }
+};
+  const NEGS = {
+  "en": {
+    "Water": "do not want any water",
+    "Hungry": "am not hungry",
+    "Bathroom": "do not need the bathroom",
+    "Tired": "am not tired",
+    "Hurt": "am not hurt",
+    "Sick": "do not feel sick",
+    "Help": "do not need help",
+    "More": "do not want more",
+    "Done": "am not done",
+    "Happy": "am not happy",
+    "Sad": "am not sad",
+    "Angry": "am not angry",
+    "Scared": "am not scared",
+    "Confused": "am not confused",
+    "Funny": "do not think that is funny",
+    "Hug": "do not want a hug",
+    "Celebrate": "do not want to celebrate",
+    "Home": "do not want to go home",
+    "School": "do not want to go to school",
+    "Play": "do not want to play",
+    "Garden": "do not want to go to the garden",
+    "Clothes": "do not want to change my clothes",
+    "Go": "do not want to go"
+  },
+  "hi": {
+    "Water": "मुझे पानी नहीं चाहिए",
+    "Hungry": "मुझे भूख नहीं लगी है",
+    "Bathroom": "मुझे बाथरूम नहीं जाना है",
+    "Tired": "मुझे थकान नहीं हो रही है",
+    "Hurt": "मुझे चोट नहीं लगी है",
+    "Sick": "मेरी तबीयत ठीक है",
+    "Help": "मुझे मदद नहीं चाहिए",
+    "More": "मुझे और नहीं चाहिए",
+    "Done": "मेरा अभी नहीं हुआ है",
+    "Happy": "मुझे खुशी नहीं हो रही है",
+    "Sad": "मुझे दुख नहीं हो रहा है",
+    "Angry": "मुझे गुस्सा नहीं आ रहा है",
+    "Scared": "मुझे डर नहीं लग रहा है",
+    "Confused": "मुझे उलझन नहीं है",
+    "Funny": "मुझे यह मज़ेदार नहीं लग रहा है",
+    "Hug": "मुझे गले नहीं लगना है",
+    "Celebrate": "मुझे जश्न नहीं मनाना है",
+    "Home": "मुझे घर नहीं जाना है",
+    "School": "मुझे स्कूल नहीं जाना है",
+    "Play": "मुझे खेलना नहीं है",
+    "Garden": "मुझे बगीचे में नहीं जाना है",
+    "Clothes": "मुझे कपड़े नहीं बदलने हैं",
+    "Go": "मुझे नहीं जाना है"
+  },
+  "es": {
+    "Water": "no quiero agua",
+    "Hungry": "no tengo hambre",
+    "Bathroom": "no necesito ir al baño",
+    "Tired": "no tengo sueño",
+    "Hurt": "no me hice daño",
+    "Sick": "me siento bien",
+    "Help": "no necesito ayuda",
+    "More": "no quiero más",
+    "Done": "todavía no terminé",
+    "Happy": "no me siento feliz",
+    "Sad": "no me siento triste",
+    "Angry": "no tengo rabia",
+    "Scared": "no tengo miedo",
+    "Confused": "entiendo",
+    "Funny": "no me parece gracioso",
+    "Hug": "no quiero un abrazo",
+    "Celebrate": "no quiero celebrar",
+    "Home": "no quiero ir a casa",
+    "School": "no quiero ir a la escuela",
+    "Play": "no quiero jugar",
+    "Garden": "no quiero ir al jardín",
+    "Clothes": "no quiero cambiarme de ropa",
+    "Go": "no quiero ir"
+  },
+  "fr": {
+    "Water": "je ne veux pas d'eau",
+    "Hungry": "je n'ai pas faim",
+    "Bathroom": "je n'ai pas besoin d'aller aux toilettes",
+    "Tired": "je n'ai pas sommeil",
+    "Hurt": "je ne me suis pas fait mal",
+    "Sick": "je me sens bien",
+    "Help": "je n'ai pas besoin d'aide",
+    "More": "je n'en veux plus",
+    "Done": "je n'ai pas fini",
+    "Happy": "je ne suis pas de bonne humeur",
+    "Sad": "je n'ai pas de peine",
+    "Angry": "je ne suis pas en colère",
+    "Scared": "je n'ai pas peur",
+    "Confused": "je comprends",
+    "Funny": "je ne trouve pas ça drôle",
+    "Hug": "je ne veux pas de câlin",
+    "Celebrate": "je ne veux pas faire la fête",
+    "Home": "je ne veux pas rentrer à la maison",
+    "School": "je ne veux pas aller à l'école",
+    "Play": "je ne veux pas jouer",
+    "Garden": "je ne veux pas aller au jardin",
+    "Clothes": "je ne veux pas changer de vêtements",
+    "Go": "je ne veux pas y aller"
+  }
+};
+  const ALONES = {
+  "en": {
+    "Stop": "Please stop.",
+    "Please": "Please.",
+    "Thank you": "Thank you.",
+    "Hello": "Hello!"
+  },
+  "hi": {
+    "Stop": "कृपया रुकिए।",
+    "Please": "कृपया।",
+    "Thank you": "धन्यवाद।",
+    "Hello": "नमस्ते!"
+  },
+  "es": {
+    "Stop": "Para, por favor.",
+    "Please": "Por favor.",
+    "Thank you": "Gracias.",
+    "Hello": "¡Hola!"
+  },
+  "fr": {
+    "Stop": "Arrête, s'il te plaît.",
+    "Please": "S'il te plaît.",
+    "Thank you": "Merci.",
+    "Hello": "Bonjour !"
+  }
+};
+  const I18N = {
+  "en": {
+    "speak": "🔊 Speak",
+    "aiOn": "🟢 AI sentences are working (Gemini).",
+    "aiNoKey": "🟠 AI is off: the server has no Gemini key. Sentences are built without AI.",
+    "aiFail": "🟠 Gemini did not answer (see the server window for the reason). The last sentence was built without AI.",
+    "aiNoServer": "🟠 The server could not be reached. Sentences are built on this device, without AI.",
+    "myCards": "My cards",
+    "mcEmoji": "Emoji (pick one from your keyboard)",
+    "mcSay": "What it says (optional)",
+    "mcAdd": "➕ Add card",
+    "mcReset": "Remove all my cards",
+    "mcResetDone": "✓ My cards removed. The original board is back.",
+    "mcNone": "Add your own cards with any emoji from your keyboard.",
+    "mcMax": "You can add up to 20 cards.",
+    "mcBadEmoji": "Please pick one emoji.",
+    "mcBadChars": "The name cannot contain + or , characters.",
+    "mcDup": "There is already a card with this name.",
+    "cBadName": "Please type a name.",
+    "cBadPhone": "Please type a phone number using digits only, for example 98765 43210.",
+    "emergency": "Emergency",
+    "sirenStart": "🔊 Start siren",
+    "sirenStop": "⏹ Stop siren",
+    "sirenNote": "Turn the device volume up. The siren starts quietly, gets louder, and plays until you stop it.",
+    "sirenSound": "Siren sound",
+    "sn_wail": "Siren (rising and falling)",
+    "sn_yelp": "Fast siren",
+    "sn_beep": "Beeping alarm",
+    "contacts": "Emergency contacts",
+    "cName": "Name",
+    "cPhone": "Phone number",
+    "cAdd": "➕ Add contact",
+    "cCall": "📞 Call",
+    "cRemove": "Remove",
+    "cMax": "You can save up to 5 contacts.",
+    "cNone": "No contacts yet. Add up to 5.",
+    "themeLbl": "Appearance",
+    "themeSystem": "Same as system",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "undo": "⬅️ Undo",
+    "clear": "❌ Clear",
+    "update": "↻ Update now",
+    "settings": "⚙️ Settings",
+    "settingsAria": "Settings",
+    "voiceToneAria": "Voice tone",
+    "sentenceAria": "Your sentence",
+    "scrollUpAria": "Scroll up",
+    "scrollDownAria": "Scroll down",
+    "delayLbl": "Speak automatically after",
+    "d3": "3 seconds",
+    "d6": "6 seconds",
+    "d0": "Never (use the Speak button)",
+    "myVoice": "My voice",
+    "calmGuide": "Calm guide voice",
+    "voiceSame": "These two voices sound alike on this device, so the calm guide speaks lower and slower to stay different.",
+    "noVoice": "No {0} voice was found on this device, so {0} may sound wrong. Install a {0} voice in your device's speech settings.",
+    "favorites": "Favorites",
+    "resetFav": "Reset favorites",
+    "tapConfirm": "Tap again to confirm",
+    "favCleared": "✓ Favorites cleared",
+    "eyeHead": "Eye tracker and head mouse",
+    "big": "Large buttons",
+    "selection": "Selection",
+    "selClick": "Click or tap",
+    "selDwell": "Dwell (hold the pointer on a button)",
+    "dwellTime": "Dwell time",
+    "w1": "1 second",
+    "w15": "1.5 seconds",
+    "w2": "2 seconds",
+    "w3": "3 seconds",
+    "webcam": "Webcam eye tracking (private, on this device)",
+    "sensLbl": "Eye tracker sensitivity",
+    "s_normal": "Normal (fastest, most reactive)",
+    "s_lower": "Lower (steadier)",
+    "s_low": "Low (much steadier)",
+    "s_lowest": "Lowest (very steady, slow)",
+    "sensNote": "Lower sensitivity smooths shaky movement and ignores tiny eye twitches, but the dot reacts more slowly.",
+    "calibBtn": "🎯 Calibrate",
+    "calib1": "Look at the red dot until it moves.",
+    "calib2": "Keep your head still. Tap anywhere to stop.",
+    "noSpeech": "This browser can't speak aloud. Sentences will still appear on screen.",
+    "tapPrompt": "Tap emojis to form a sentence...",
+    "forming": "✨ Forming sentence...",
+    "building": "Building: ",
+    "calmMsg": "Take a slow, deep breath. When you are ready, tap an emoji to try again.",
+    "badge": "Voice tone: ",
+    "favHeading": "⭐ Your favorites",
+    "comboHeading": "🔗 Often used together",
+    "persInfo": "Based on what you use most. Saved only on this device.",
+    "persEmpty": "Your favorites and most-used combinations will appear here after you have used the app a few times.",
+    "calmLine": "It's okay. Take a slow, deep breath. Calm down, and try again.",
+    "calmShort": "Take a slow, deep breath.",
+    "myVoiceTest": "This is my voice.",
+    "hello": "Hello!",
+    "gzInsecure": "The camera is blocked on this page. Open the app at http://localhost:8080 from the Java server (not as a saved file), in Chrome or Edge.",
+    "gzAsk": "Asking for camera access... click Allow.",
+    "gzBlocked": "Camera access was blocked. Click the camera icon in the address bar, choose Allow, then switch this on again.",
+    "gzNoCam": "No camera was found on this device.",
+    "gzBusy": "The camera is in use by another app. Close it and try again.",
+    "gzOpenFail": "The camera could not be opened ({0}).",
+    "gzLoading": "Loading the face model (needs internet the first time, can take a few seconds)...",
+    "gzStartFail": "Eye tracking could not start ({0}). Check the internet connection and try again.",
+    "gzReady": "Camera is on. Face the camera in good light and calibrate before use.",
+    "gzNoFace": "⚠️ No face found. Face the camera, sit about an arm's length away, with light in front of you.",
+    "gzCalDone": "Calibration done. Only a few numbers are saved on this device, never images. If the red dot is off, press Calibrate again.",
+    "gzCalFail": "⚠️ Calibration failed. Press Calibrate and try again.",
+    "gzCalSeen": "⚠️ Your face was not seen clearly enough. Face the camera in good light and press Calibrate again.",
+    "gzCalStop": "Calibration was stopped. Press Calibrate to finish it.",
+    "gzSaved": "Using your saved calibration. Press Calibrate if the red dot is off.",
+    "dbgFps": "Frames per second",
+    "dbgFace": "face found",
+    "dbgCal": "calibrated",
+    "yes": "yes",
+    "no": "no",
+    "tone_Calm": "Calm voice",
+    "tone_Happy": "Happy voice",
+    "tone_Excited": "Excited voice",
+    "tone_Sad": "Sad voice",
+    "tone_Angry": "Angry voice",
+    "tone_Scared": "Scared / urgent"
+  },
+  "hi": {
+    "speak": "🔊 बोलें",
+    "aiOn": "🟢 AI वाक्य काम कर रहे हैं (Gemini)।",
+    "aiNoKey": "🟠 AI बंद है: सर्वर में Gemini की कुंजी नहीं है। वाक्य बिना AI के बन रहे हैं।",
+    "aiFail": "🟠 Gemini ने जवाब नहीं दिया (कारण सर्वर विंडो में देखें)। पिछला वाक्य बिना AI के बना।",
+    "aiNoServer": "🟠 सर्वर से संपर्क नहीं हो सका। वाक्य इसी डिवाइस पर बिना AI के बन रहे हैं।",
+    "myCards": "मेरे कार्ड",
+    "mcEmoji": "इमोजी (कीबोर्ड से एक चुनें)",
+    "mcSay": "यह क्या बोलेगा (वैकल्पिक)",
+    "mcAdd": "➕ कार्ड जोड़ें",
+    "mcReset": "मेरे सभी कार्ड हटाएँ",
+    "mcResetDone": "✓ मेरे कार्ड हटा दिए। मूल बोर्ड वापस आ गया है।",
+    "mcNone": "कीबोर्ड के किसी भी इमोजी से अपने कार्ड जोड़ें।",
+    "mcMax": "आप अधिकतम 20 कार्ड जोड़ सकते हैं।",
+    "mcBadEmoji": "कृपया एक इमोजी चुनें।",
+    "mcBadChars": "नाम में + या , नहीं हो सकता।",
+    "mcDup": "इस नाम का कार्ड पहले से है।",
+    "cBadName": "कृपया नाम लिखें।",
+    "cBadPhone": "कृपया सिर्फ़ अंकों वाला फ़ोन नंबर लिखें, जैसे 98765 43210।",
+    "emergency": "आपातकाल",
+    "sirenStart": "🔊 सायरन चालू करें",
+    "sirenStop": "⏹ सायरन बंद करें",
+    "sirenNote": "डिवाइस की आवाज़ बढ़ा दें। सायरन धीमी आवाज़ से शुरू होकर तेज़ होता जाता है और तब तक बजता है जब तक आप उसे बंद न करें।",
+    "sirenSound": "सायरन की आवाज़",
+    "sn_wail": "सायरन (ऊपर-नीचे होती आवाज़)",
+    "sn_yelp": "तेज़ सायरन",
+    "sn_beep": "बीप वाला अलार्म",
+    "contacts": "आपातकालीन संपर्क",
+    "cName": "नाम",
+    "cPhone": "फ़ोन नंबर",
+    "cAdd": "➕ संपर्क जोड़ें",
+    "cCall": "📞 कॉल करें",
+    "cRemove": "हटाएँ",
+    "cMax": "आप अधिकतम 5 संपर्क सहेज सकते हैं।",
+    "cNone": "अभी कोई संपर्क नहीं है। अधिकतम 5 जोड़ें।",
+    "themeLbl": "दिखावट",
+    "themeSystem": "सिस्टम के अनुसार",
+    "themeLight": "हल्का",
+    "themeDark": "गहरा",
+    "undo": "⬅️ वापस",
+    "clear": "❌ मिटाएँ",
+    "update": "↻ अभी अपडेट करें",
+    "settings": "⚙️ सेटिंग्स",
+    "settingsAria": "सेटिंग्स",
+    "voiceToneAria": "आवाज़ का भाव",
+    "sentenceAria": "आपका वाक्य",
+    "scrollUpAria": "ऊपर स्क्रोल करें",
+    "scrollDownAria": "नीचे स्क्रोल करें",
+    "delayLbl": "अपने आप बोलने से पहले का समय",
+    "d3": "3 सेकंड",
+    "d6": "6 सेकंड",
+    "d0": "कभी नहीं (बोलें बटन दबाएँ)",
+    "myVoice": "मेरी आवाज़",
+    "calmGuide": "शांत करने वाली आवाज़",
+    "voiceSame": "इस डिवाइस पर ये दोनों आवाज़ें एक जैसी लगती हैं, इसलिए शांत करने वाली आवाज़ अलग रहने के लिए धीमी और भारी बोलती है।",
+    "noVoice": "इस डिवाइस पर {0} आवाज़ नहीं मिली, इसलिए {0} ठीक से नहीं सुनाई दे सकती। डिवाइस की स्पीच सेटिंग्स में {0} आवाज़ जोड़ें।",
+    "favorites": "पसंदीदा",
+    "resetFav": "पसंदीदा हटाएँ",
+    "tapConfirm": "पक्का करने के लिए फिर दबाएँ",
+    "favCleared": "✓ पसंदीदा हटा दिए",
+    "eyeHead": "आई ट्रैकर और हेड माउस",
+    "big": "बड़े बटन",
+    "selection": "चयन का तरीका",
+    "selClick": "क्लिक या टैप",
+    "selDwell": "ठहराव (पॉइंटर को बटन पर रोकें)",
+    "dwellTime": "ठहराव का समय",
+    "w1": "1 सेकंड",
+    "w15": "1.5 सेकंड",
+    "w2": "2 सेकंड",
+    "w3": "3 सेकंड",
+    "webcam": "वेबकैम आई ट्रैकिंग (निजी, इसी डिवाइस पर)",
+    "sensLbl": "आई ट्रैकर की संवेदनशीलता",
+    "s_normal": "सामान्य (सबसे तेज़)",
+    "s_lower": "कम (ज़्यादा स्थिर)",
+    "s_low": "और कम (बहुत स्थिर)",
+    "s_lowest": "सबसे कम (बहुत स्थिर, धीमा)",
+    "sensNote": "संवेदनशीलता कम करने से हिलता हुआ बिंदु स्थिर होता है और आँखों की छोटी हलचल अनदेखी होती है, पर बिंदु धीरे चलता है।",
+    "calibBtn": "🎯 कैलिब्रेट करें",
+    "calib1": "लाल बिंदु को तब तक देखें जब तक वह हिल न जाए।",
+    "calib2": "सिर स्थिर रखें। रोकने के लिए कहीं भी टैप करें।",
+    "noSpeech": "यह ब्राउज़र बोल नहीं सकता। वाक्य फिर भी स्क्रीन पर दिखेंगे।",
+    "tapPrompt": "वाक्य बनाने के लिए इमोजी दबाएँ...",
+    "forming": "✨ वाक्य बन रहा है...",
+    "building": "बना रहे हैं: ",
+    "calmMsg": "धीरे से एक गहरी साँस लें। तैयार होने पर फिर से कोशिश करने के लिए कोई इमोजी दबाएँ।",
+    "badge": "आवाज़ का भाव: ",
+    "favHeading": "⭐ आपके पसंदीदा",
+    "comboHeading": "🔗 अक्सर साथ में इस्तेमाल",
+    "persInfo": "जो आप सबसे ज़्यादा इस्तेमाल करते हैं उसके आधार पर। सिर्फ़ इसी डिवाइस पर सहेजा गया।",
+    "persEmpty": "ऐप को कुछ बार इस्तेमाल करने के बाद आपके पसंदीदा और अक्सर इस्तेमाल होने वाले जोड़े यहाँ दिखेंगे।",
+    "calmLine": "कोई बात नहीं। धीरे से एक गहरी साँस लीजिए। शांत हो जाइए, और फिर से कोशिश कीजिए।",
+    "calmShort": "धीरे से एक गहरी साँस लीजिए।",
+    "myVoiceTest": "यह मेरी आवाज़ है।",
+    "hello": "नमस्ते!",
+    "gzInsecure": "इस पेज पर कैमरा बंद है। ऐप को Java सर्वर से http://localhost:8080 पर, Chrome या Edge में खोलें (सहेजी हुई फ़ाइल के रूप में नहीं)।",
+    "gzAsk": "कैमरा की अनुमति माँगी जा रही है... 'अनुमति दें' पर क्लिक करें।",
+    "gzBlocked": "कैमरा की अनुमति रोक दी गई थी। एड्रेस बार में कैमरा आइकन पर क्लिक करें, 'अनुमति दें' चुनें, फिर इसे दोबारा चालू करें।",
+    "gzNoCam": "इस डिवाइस पर कोई कैमरा नहीं मिला।",
+    "gzBusy": "कैमरा किसी दूसरे ऐप में इस्तेमाल हो रहा है। उसे बंद करके फिर कोशिश करें।",
+    "gzOpenFail": "कैमरा खोला नहीं जा सका ({0})।",
+    "gzLoading": "चेहरे का मॉडल लोड हो रहा है (पहली बार इंटरनेट चाहिए, कुछ सेकंड लग सकते हैं)...",
+    "gzStartFail": "आई ट्रैकिंग शुरू नहीं हो सकी ({0})। इंटरनेट कनेक्शन जाँचें और फिर कोशिश करें।",
+    "gzReady": "कैमरा चालू है। कैमरे की ओर अच्छी रोशनी में देखें और इस्तेमाल से पहले कैलिब्रेट करें।",
+    "gzNoFace": "⚠️ चेहरा नहीं मिला। कैमरे की ओर देखें, लगभग एक हाथ की दूरी पर बैठें, और रोशनी अपने सामने रखें।",
+    "gzCalDone": "कैलिब्रेशन हो गया। इस डिवाइस पर सिर्फ़ कुछ संख्याएँ सहेजी गई हैं, कोई तस्वीर नहीं। अगर लाल बिंदु सही जगह पर न हो तो फिर से कैलिब्रेट करें।",
+    "gzCalFail": "⚠️ कैलिब्रेशन नहीं हो सका। 'कैलिब्रेट करें' दबाकर फिर कोशिश करें।",
+    "gzCalSeen": "⚠️ आपका चेहरा ठीक से नहीं दिखा। कैमरे की ओर अच्छी रोशनी में देखें और फिर से कैलिब्रेट करें।",
+    "gzCalStop": "कैलिब्रेशन रोक दिया गया। पूरा करने के लिए 'कैलिब्रेट करें' दबाएँ।",
+    "gzSaved": "आपका सहेजा हुआ कैलिब्रेशन इस्तेमाल हो रहा है। अगर लाल बिंदु सही जगह पर न हो तो 'कैलिब्रेट करें' दबाएँ।",
+    "dbgFps": "फ्रेम प्रति सेकंड",
+    "dbgFace": "चेहरा मिला",
+    "dbgCal": "कैलिब्रेट किया",
+    "yes": "हाँ",
+    "no": "नहीं",
+    "tone_Calm": "शांत आवाज़",
+    "tone_Happy": "खुश आवाज़",
+    "tone_Excited": "उत्साहित आवाज़",
+    "tone_Sad": "उदास आवाज़",
+    "tone_Angry": "गुस्से वाली आवाज़",
+    "tone_Scared": "डरी हुई / ज़रूरी आवाज़"
+  },
+  "es": {
+    "speak": "🔊 Hablar",
+    "aiOn": "🟢 Las frases con IA funcionan (Gemini).",
+    "aiNoKey": "🟠 La IA está apagada: el servidor no tiene clave de Gemini. Las frases se crean sin IA.",
+    "aiFail": "🟠 Gemini no respondió (mira la ventana del servidor para ver el motivo). La última frase se creó sin IA.",
+    "aiNoServer": "🟠 No se pudo conectar con el servidor. Las frases se crean en este dispositivo, sin IA.",
+    "myCards": "Mis tarjetas",
+    "mcEmoji": "Emoji (elige uno de tu teclado)",
+    "mcSay": "Lo que dice (opcional)",
+    "mcAdd": "➕ Añadir tarjeta",
+    "mcReset": "Quitar todas mis tarjetas",
+    "mcResetDone": "✓ Mis tarjetas quitadas. Ha vuelto el tablero original.",
+    "mcNone": "Añade tus propias tarjetas con cualquier emoji de tu teclado.",
+    "mcMax": "Puedes añadir hasta 20 tarjetas.",
+    "mcBadEmoji": "Elige un emoji.",
+    "mcBadChars": "El nombre no puede contener + ni ,.",
+    "mcDup": "Ya hay una tarjeta con este nombre.",
+    "cBadName": "Escribe un nombre.",
+    "cBadPhone": "Escribe un número de teléfono solo con dígitos, por ejemplo 98765 43210.",
+    "emergency": "Emergencia",
+    "sirenStart": "🔊 Activar sirena",
+    "sirenStop": "⏹ Detener sirena",
+    "sirenNote": "Sube el volumen del dispositivo. La sirena empieza suave, va subiendo y suena hasta que la detengas.",
+    "sirenSound": "Sonido de la sirena",
+    "sn_wail": "Sirena (sube y baja)",
+    "sn_yelp": "Sirena rápida",
+    "sn_beep": "Alarma de pitidos",
+    "contacts": "Contactos de emergencia",
+    "cName": "Nombre",
+    "cPhone": "Número de teléfono",
+    "cAdd": "➕ Añadir contacto",
+    "cCall": "📞 Llamar",
+    "cRemove": "Quitar",
+    "cMax": "Puedes guardar hasta 5 contactos.",
+    "cNone": "Aún no hay contactos. Añade hasta 5.",
+    "themeLbl": "Apariencia",
+    "themeSystem": "Igual que el sistema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "undo": "⬅️ Deshacer",
+    "clear": "❌ Borrar",
+    "update": "↻ Actualizar ahora",
+    "settings": "⚙️ Ajustes",
+    "settingsAria": "Ajustes",
+    "voiceToneAria": "Tono de voz",
+    "sentenceAria": "Tu frase",
+    "scrollUpAria": "Desplazar hacia arriba",
+    "scrollDownAria": "Desplazar hacia abajo",
+    "delayLbl": "Hablar automáticamente después de",
+    "d3": "3 segundos",
+    "d6": "6 segundos",
+    "d0": "Nunca (usar el botón Hablar)",
+    "myVoice": "Mi voz",
+    "calmGuide": "Voz guía tranquila",
+    "voiceSame": "Estas dos voces suenan parecidas en este dispositivo, así que la guía tranquila habla más grave y lento para diferenciarse.",
+    "noVoice": "No se encontró una voz en {0} en este dispositivo, así que puede sonar mal. Instala una voz en {0} en los ajustes de voz del dispositivo.",
+    "favorites": "Favoritos",
+    "resetFav": "Restablecer favoritos",
+    "tapConfirm": "Toca otra vez para confirmar",
+    "favCleared": "✓ Favoritos borrados",
+    "eyeHead": "Seguimiento ocular y ratón de cabeza",
+    "big": "Botones grandes",
+    "selection": "Selección",
+    "selClick": "Clic o toque",
+    "selDwell": "Permanencia (mantén el puntero sobre un botón)",
+    "dwellTime": "Tiempo de permanencia",
+    "w1": "1 segundo",
+    "w15": "1,5 segundos",
+    "w2": "2 segundos",
+    "w3": "3 segundos",
+    "webcam": "Seguimiento ocular con webcam (privado, en este dispositivo)",
+    "sensLbl": "Sensibilidad del seguimiento ocular",
+    "s_normal": "Normal (más rápido, más reactivo)",
+    "s_lower": "Baja (más estable)",
+    "s_low": "Muy baja (mucho más estable)",
+    "s_lowest": "La más baja (muy estable, lento)",
+    "sensNote": "Una sensibilidad menor suaviza el movimiento tembloroso e ignora pequeños tics de los ojos, pero el punto reacciona más despacio.",
+    "calibBtn": "🎯 Calibrar",
+    "calib1": "Mira el punto rojo hasta que se mueva.",
+    "calib2": "Mantén la cabeza quieta. Toca en cualquier lugar para detener.",
+    "noSpeech": "Este navegador no puede hablar en voz alta. Las frases seguirán apareciendo en pantalla.",
+    "tapPrompt": "Toca emojis para formar una frase...",
+    "forming": "✨ Formando la frase...",
+    "building": "Armando: ",
+    "calmMsg": "Respira lento y profundo. Cuando estés listo, toca un emoji para intentarlo de nuevo.",
+    "badge": "Tono de voz: ",
+    "favHeading": "⭐ Tus favoritos",
+    "comboHeading": "🔗 Usados a menudo juntos",
+    "persInfo": "Según lo que más usas. Guardado solo en este dispositivo.",
+    "persEmpty": "Tus favoritos y las combinaciones más usadas aparecerán aquí después de usar la app unas cuantas veces.",
+    "calmLine": "No pasa nada. Respira lento y profundo. Cálmate e inténtalo de nuevo.",
+    "calmShort": "Respira lento y profundo.",
+    "myVoiceTest": "Esta es mi voz.",
+    "hello": "¡Hola!",
+    "gzInsecure": "La cámara está bloqueada en esta página. Abre la app en http://localhost:8080 desde el servidor Java (no como archivo guardado), en Chrome o Edge.",
+    "gzAsk": "Pidiendo acceso a la cámara... pulsa Permitir.",
+    "gzBlocked": "Se bloqueó el acceso a la cámara. Haz clic en el icono de la cámara en la barra de direcciones, elige Permitir y vuelve a activar esto.",
+    "gzNoCam": "No se encontró ninguna cámara en este dispositivo.",
+    "gzBusy": "Otra app está usando la cámara. Ciérrala e inténtalo de nuevo.",
+    "gzOpenFail": "No se pudo abrir la cámara ({0}).",
+    "gzLoading": "Cargando el modelo facial (necesita internet la primera vez, puede tardar unos segundos)...",
+    "gzStartFail": "No se pudo iniciar el seguimiento ocular ({0}). Revisa la conexión a internet e inténtalo de nuevo.",
+    "gzReady": "La cámara está encendida. Mira a la cámara con buena luz y calibra antes de usar.",
+    "gzNoFace": "⚠️ No se encuentra ninguna cara. Mira a la cámara, siéntate a un brazo de distancia y con luz frente a ti.",
+    "gzCalDone": "Calibración lista. En este dispositivo solo se guardan unos números, nunca imágenes. Si el punto rojo no coincide, calibra de nuevo.",
+    "gzCalFail": "⚠️ La calibración falló. Pulsa Calibrar e inténtalo de nuevo.",
+    "gzCalSeen": "⚠️ No se vio tu cara con suficiente claridad. Mira a la cámara con buena luz y vuelve a calibrar.",
+    "gzCalStop": "Se detuvo la calibración. Pulsa Calibrar para terminarla.",
+    "gzSaved": "Usando tu calibración guardada. Pulsa Calibrar si el punto rojo no coincide.",
+    "dbgFps": "Fotogramas por segundo",
+    "dbgFace": "cara encontrada",
+    "dbgCal": "calibrado",
+    "yes": "sí",
+    "no": "no",
+    "tone_Calm": "Voz tranquila",
+    "tone_Happy": "Voz alegre",
+    "tone_Excited": "Voz emocionada",
+    "tone_Sad": "Voz triste",
+    "tone_Angry": "Voz enojada",
+    "tone_Scared": "Voz asustada / urgente"
+  },
+  "fr": {
+    "speak": "🔊 Parler",
+    "aiOn": "🟢 Les phrases par IA fonctionnent (Gemini).",
+    "aiNoKey": "🟠 L'IA est désactivée : le serveur n'a pas de clé Gemini. Les phrases sont créées sans IA.",
+    "aiFail": "🟠 Gemini n'a pas répondu (voir la fenêtre du serveur pour la raison). La dernière phrase a été créée sans IA.",
+    "aiNoServer": "🟠 Impossible de joindre le serveur. Les phrases sont créées sur cet appareil, sans IA.",
+    "myCards": "Mes cartes",
+    "mcEmoji": "Émoji (choisissez-en un sur votre clavier)",
+    "mcSay": "Ce que ça dit (facultatif)",
+    "mcAdd": "➕ Ajouter une carte",
+    "mcReset": "Supprimer toutes mes cartes",
+    "mcResetDone": "✓ Mes cartes supprimées. Le tableau d'origine est revenu.",
+    "mcNone": "Ajoutez vos propres cartes avec n'importe quel émoji de votre clavier.",
+    "mcMax": "Vous pouvez ajouter jusqu'à 20 cartes.",
+    "mcBadEmoji": "Choisissez un émoji.",
+    "mcBadChars": "Le nom ne peut pas contenir + ni ,.",
+    "mcDup": "Une carte porte déjà ce nom.",
+    "cBadName": "Saisissez un nom.",
+    "cBadPhone": "Saisissez un numéro de téléphone en chiffres uniquement, par exemple 98765 43210.",
+    "emergency": "Urgence",
+    "sirenStart": "🔊 Lancer la sirène",
+    "sirenStop": "⏹ Arrêter la sirène",
+    "sirenNote": "Montez le volume de l'appareil. La sirène commence doucement, monte en puissance et sonne jusqu'à ce que vous l'arrêtiez.",
+    "sirenSound": "Son de la sirène",
+    "sn_wail": "Sirène (monte et descend)",
+    "sn_yelp": "Sirène rapide",
+    "sn_beep": "Alarme à bips",
+    "contacts": "Contacts d'urgence",
+    "cName": "Nom",
+    "cPhone": "Numéro de téléphone",
+    "cAdd": "➕ Ajouter un contact",
+    "cCall": "📞 Appeler",
+    "cRemove": "Supprimer",
+    "cMax": "Vous pouvez enregistrer jusqu'à 5 contacts.",
+    "cNone": "Aucun contact pour l'instant. Ajoutez-en jusqu'à 5.",
+    "themeLbl": "Apparence",
+    "themeSystem": "Comme le système",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "undo": "⬅️ Annuler",
+    "clear": "❌ Effacer",
+    "update": "↻ Actualiser",
+    "settings": "⚙️ Paramètres",
+    "settingsAria": "Paramètres",
+    "voiceToneAria": "Ton de la voix",
+    "sentenceAria": "Votre phrase",
+    "scrollUpAria": "Défiler vers le haut",
+    "scrollDownAria": "Défiler vers le bas",
+    "delayLbl": "Parler automatiquement après",
+    "d3": "3 secondes",
+    "d6": "6 secondes",
+    "d0": "Jamais (utiliser le bouton Parler)",
+    "myVoice": "Ma voix",
+    "calmGuide": "Voix de guide calme",
+    "voiceSame": "Ces deux voix se ressemblent sur cet appareil, alors le guide calme parle plus grave et plus lentement pour se distinguer.",
+    "noVoice": "Aucune voix en {0} n'a été trouvée sur cet appareil, donc cela peut sonner bizarrement. Installez une voix en {0} dans les paramètres vocaux de l'appareil.",
+    "favorites": "Favoris",
+    "resetFav": "Réinitialiser les favoris",
+    "tapConfirm": "Touchez encore pour confirmer",
+    "favCleared": "✓ Favoris effacés",
+    "eyeHead": "Suivi du regard et souris de tête",
+    "big": "Grands boutons",
+    "selection": "Sélection",
+    "selClick": "Clic ou toucher",
+    "selDwell": "Maintien (gardez le pointeur sur un bouton)",
+    "dwellTime": "Durée de maintien",
+    "w1": "1 seconde",
+    "w15": "1,5 seconde",
+    "w2": "2 secondes",
+    "w3": "3 secondes",
+    "webcam": "Suivi du regard par webcam (privé, sur cet appareil)",
+    "sensLbl": "Sensibilité du suivi du regard",
+    "s_normal": "Normale (la plus rapide, la plus réactive)",
+    "s_lower": "Basse (plus stable)",
+    "s_low": "Très basse (beaucoup plus stable)",
+    "s_lowest": "La plus basse (très stable, lent)",
+    "sensNote": "Une sensibilité plus faible lisse les mouvements tremblants et ignore les petits tics des yeux, mais le point réagit plus lentement.",
+    "calibBtn": "🎯 Calibrer",
+    "calib1": "Regardez le point rouge jusqu'à ce qu'il bouge.",
+    "calib2": "Gardez la tête immobile. Touchez n'importe où pour arrêter.",
+    "noSpeech": "Ce navigateur ne peut pas parler à voix haute. Les phrases s'afficheront quand même à l'écran.",
+    "tapPrompt": "Touchez des émojis pour former une phrase...",
+    "forming": "✨ Formation de la phrase...",
+    "building": "En cours : ",
+    "calmMsg": "Respirez lentement et profondément. Quand vous êtes prêt, touchez un émoji pour réessayer.",
+    "badge": "Ton de la voix : ",
+    "favHeading": "⭐ Vos favoris",
+    "comboHeading": "🔗 Souvent utilisés ensemble",
+    "persInfo": "D'après ce que vous utilisez le plus. Enregistré uniquement sur cet appareil.",
+    "persEmpty": "Vos favoris et vos combinaisons les plus utilisées apparaîtront ici après quelques utilisations de l'appli.",
+    "calmLine": "Ce n'est pas grave. Respire lentement et profondément. Calme-toi, puis réessaie.",
+    "calmShort": "Respire lentement et profondément.",
+    "myVoiceTest": "Ceci est ma voix.",
+    "hello": "Bonjour !",
+    "gzInsecure": "La caméra est bloquée sur cette page. Ouvrez l'appli sur http://localhost:8080 depuis le serveur Java (pas comme fichier enregistré), dans Chrome ou Edge.",
+    "gzAsk": "Demande d'accès à la caméra... cliquez sur Autoriser.",
+    "gzBlocked": "L'accès à la caméra a été bloqué. Cliquez sur l'icône de caméra dans la barre d'adresse, choisissez Autoriser, puis réactivez cette option.",
+    "gzNoCam": "Aucune caméra n'a été trouvée sur cet appareil.",
+    "gzBusy": "La caméra est utilisée par une autre appli. Fermez-la et réessayez.",
+    "gzOpenFail": "Impossible d'ouvrir la caméra ({0}).",
+    "gzLoading": "Chargement du modèle de visage (internet requis la première fois, quelques secondes possibles)...",
+    "gzStartFail": "Le suivi du regard n'a pas pu démarrer ({0}). Vérifiez la connexion internet et réessayez.",
+    "gzReady": "La caméra est allumée. Regardez la caméra avec une bonne lumière et calibrez avant l'utilisation.",
+    "gzNoFace": "⚠️ Aucun visage trouvé. Regardez la caméra, asseyez-vous à un bras de distance, avec la lumière devant vous.",
+    "gzCalDone": "Calibrage terminé. Seuls quelques chiffres sont enregistrés sur cet appareil, jamais d'images. Si le point rouge est décalé, calibrez à nouveau.",
+    "gzCalFail": "⚠️ Le calibrage a échoué. Appuyez sur Calibrer et réessayez.",
+    "gzCalSeen": "⚠️ Votre visage n'a pas été vu assez clairement. Regardez la caméra avec une bonne lumière et calibrez à nouveau.",
+    "gzCalStop": "Le calibrage a été arrêté. Appuyez sur Calibrer pour le terminer.",
+    "gzSaved": "Utilisation de votre calibrage enregistré. Appuyez sur Calibrer si le point rouge est décalé.",
+    "dbgFps": "Images par seconde",
+    "dbgFace": "visage trouvé",
+    "dbgCal": "calibré",
+    "yes": "oui",
+    "no": "non",
+    "tone_Calm": "Voix calme",
+    "tone_Happy": "Voix joyeuse",
+    "tone_Excited": "Voix enthousiaste",
+    "tone_Sad": "Voix triste",
+    "tone_Angry": "Voix en colère",
+    "tone_Scared": "Voix effrayée / urgente"
+  }
+};
+  // Joining words for the local sentence, so the cards end up in ONE sentence even without AI.
+  // want / notWant: used for one of the user's own cards that has only a name. pre / suf: where Hello, Please,
+  // Thank you and Stop go when they are joined to a sentence.
+  const CONNECT = {
+    "en": {
+      "and": " and ",
+      "want": "want {0}",
+      "notWant": "do not want {0}",
+      "pre": {
+        "Hello": "Hello, ",
+        "Stop": "Please stop, "
+      },
+      "suf": {
+        "Please": ", please",
+        "Thank you": ", thank you"
+      }
+    },
+    "hi": {
+      "and": " और ",
+      "want": "मुझे {0} चाहिए",
+      "notWant": "मुझे {0} नहीं चाहिए",
+      "pre": {
+        "Hello": "नमस्ते, ",
+        "Stop": "कृपया रुकिए, ",
+        "Please": "कृपया "
+      },
+      "suf": {
+        "Thank you": ", धन्यवाद"
+      }
+    },
+    "es": {
+      "and": " y ",
+      "want": "quiero {0}",
+      "notWant": "no quiero {0}",
+      "pre": {
+        "Hello": "Hola, ",
+        "Stop": "Para, por favor, "
+      },
+      "suf": {
+        "Please": ", por favor",
+        "Thank you": ", gracias"
+      }
+    },
+    "fr": {
+      "and": " et ",
+      "want": "je veux {0}",
+      "notWant": "je ne veux pas {0}",
+      "pre": {
+        "Hello": "Bonjour, ",
+        "Stop": "Arrête s'il te plaît, "
+      },
+      "suf": {
+        "Please": ", s'il te plaît",
+        "Thank you": ", merci"
+      }
+    }
+  };
+  const LANG_CODES = Object.keys(LANGS);
+  let lang = "en";
+  const tr = k => (I18N[lang] && I18N[lang][k]) || I18N.en[k] || k;
+  const dl = label => (LABELS[lang] && LABELS[lang][label]) || label;   // display text for a card label
+  const capFirst = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+  // ---------- State ----------
+  let cards = [];          // cards tapped for the sentence being built
+  let tone = "Calm";
+  let delaySec = 3;
+  let timer = null;
+  let busy = false;        // waiting for the server
+  let pending = false;     // Speak pressed while busy
+  let reqId = 0;           // lets Clear cancel an in-flight request
+  let lastSpoken = "";
+  let unlocked = false;
+
+  // The server stops waiting for Gemini after 15 seconds and answers locally, so the page waits a little longer than that.
+  const SERVER_WAIT_MS = 17000;
+
+  // Calm mode: if a sentence gets longer than MAX_EMOJIS, it resets and soothing music plays.
+  const MAX_EMOJIS = 3;
+  const CALM_SECONDS = 20;   // how long the music lasts if nobody taps
+  let calming = false;
+  let myVoice = null, calmVoice = null;   // two different voices: emoji sentences vs calming guide
+  let audioCtx = null, calmNodes = null, calmTimer = null;
+
+  const $ = id => document.getElementById(id);
+  const canSpeak = "speechSynthesis" in window;
+
+  // ---------- Voice ----------
+  // Some browsers (iPhone Safari) only allow speech after a tap, so "prime" it on the first tap.
+  document.addEventListener("pointerdown", () => {
+    if (unlocked || !canSpeak) return;
+    speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    unlocked = true;
+  }, {once:true});
+
+  function speak(text) {
+    if (!text || !canSpeak) return;
+    const t = TONES[tone];
+    const u = new SpeechSynthesisUtterance(text);
+    u.pitch = t.pitch; u.rate = t.rate; u.volume = t.volume;
+    if (myVoice) { u.voice = myVoice; u.lang = myVoice.lang; } else u.lang = LANGS[lang].tag;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+
+  // ---------- Appearance (light / dark / same as system) ----------
+  let themePref = "system";
+  const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  const isDark = () => document.documentElement.dataset.theme === "dark";
+
+  function applyTheme() {
+    const dark = themePref === "dark" || (themePref === "system" && !!darkQuery && darkQuery.matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    setTone(tone, false);                    // the tone colors are different in dark mode
+  }
+  if (darkQuery) {                           // follow the system when it switches (for example at sunset)
+    const onSystemChange = () => { if (themePref === "system") applyTheme(); };
+    if (darkQuery.addEventListener) darkQuery.addEventListener("change", onSystemChange);
+    else if (darkQuery.addListener) darkQuery.addListener(onSystemChange);
+  }
+
+  // ---------- Tone ----------
+  function fillTone(b) {                     // picture on top, words underneath
+    b.textContent = "";
+    const i = document.createElement("span"); i.className = "ti"; i.textContent = TONES[b.dataset.tone].icon; i.setAttribute("aria-hidden", "true");
+    const l = document.createElement("span"); l.textContent = tr("tone_" + b.dataset.tone);
+    b.append(i, l);
+  }
+
+  function buildTones() {
+    Object.entries(TONES).forEach(([name, t]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "tone"; b.dataset.tone = name;
+      fillTone(b);
+      b.onclick = () => setTone(name, true);
+      $("tones").appendChild(b);
+    });
+  }
+
+  function setTone(name, fromUser) {
+    if (!TONES[name]) return;
+    tone = name;
+    const t = TONES[name];
+    const dark = isDark();
+    document.documentElement.style.setProperty("--accent", dark ? t.dcolor : t.color);
+    document.documentElement.style.setProperty("--bg", dark ? t.dbg : t.bg);
+    document.querySelectorAll(".tone").forEach(b => {
+      const on = b.dataset.tone === name;
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.style.background = on ? "var(--accent)" : "";
+      b.style.borderColor = on ? "var(--accent)" : "";
+    });
+    $("badge").textContent = tr("badge") + t.icon + " " + tr("tone_" + name);
+    // Preview the new tone on the last sentence.
+    if (fromUser && lastSpoken && !cards.length && !busy && !calming) speak(lastSpoken);
+  }
+
+  // ---------- Display ----------
+  function render() {
+    $("strip").textContent = calming ? "😌" : cards.map(c => c.emoji).join(" ");
+    let msg;
+    if (calming) msg = tr("calmMsg");
+    else if (busy) msg = tr("forming");
+    else if (cards.length) msg = tr("building") + cards.map(c => dl(c.label)).join(" + ") + "...";
+    else msg = lastSpoken || tr("tapPrompt");
+    $("sentence").textContent = msg;
+    syncPicked();
+  }
+
+  // Marks every card that is already in the sentence (in the main grid and in the favorites).
+  function syncPicked() {
+    document.querySelectorAll(".card").forEach(b => {
+      const on = !calming && cards.some(c => c.label === b.dataset.label);
+      b.classList.toggle("picked", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  // ---------- Timer ----------
+  function resetBar() {
+    const bar = $("timer");
+    bar.style.transition = "none";
+    bar.style.width = "0%";
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    resetBar();
+    if (delaySec === 0 || !cards.length) return;
+    const bar = $("timer");
+    bar.style.width = "100%";
+    void bar.offsetWidth; // restart the animation
+    bar.style.transition = "width " + delaySec + "s linear";
+    bar.style.width = "0%";
+    timer = setTimeout(submit, delaySec * 1000);
+  }
+
+  // ---------- Sentence building ----------
+  // Local sentence, used whenever the server can't be reached or doesn't answer in time.
+  function clientFallback(labels, emotion) {
+    const L = LANGS[lang] || LANGS.en, C = CONNECT[lang] || CONNECT.en;
+    const no = labels.includes("No");
+    const pos = POSS[lang] || POSS.en, neg = NEGS[lang] || NEGS.en, alone = ALONES[lang] || ALONES.en;
+    const clauses = [];      // pieces that follow "I ...", joined with "and"
+    const aloneWords = [];   // Hello, Please, Thank you, Stop
+    const typed = [];        // sentences typed for the user's own cards
+    const ownCards = [];
+    labels.forEach(l => {
+      if (l === "Yes" || l === "No") return;
+      const own = cardByLabel.get(l);
+      if (own && own.custom) { ownCards.push(own); return; }
+      const clause = (no ? neg : pos)[l];
+      if (clause) clauses.push(clause);
+      else if (!no && alone[l]) aloneWords.push(l);
+    });
+    ownCards.forEach(c => {                                   // after the built-in cards, like the server does
+      const say = (c.say || "").trim();
+      if (say) typed.push(stripEnd(say));
+      else clauses.push((no ? C.notWant : C.want).replace("{0}", c.label));   // only a name: "I want <name>"
+    });
+    const excited = (emotion === "Happy" || emotion === "Excited");
+
+    if (!clauses.length && !typed.length) {                   // nothing to join
+      if (!aloneWords.length) return no ? L.no : L.yes;
+      return aloneWords.map(w => alone[w]).join(" ");
+    }
+    if (no && !clauses.length) {                              // "No" cannot be applied to a typed sentence
+      return L.no + typed.map(t => " " + capFirst(t) + L.end).join("");
+    }
+    let body = clauses.length ? L.first + clauses.join(L.join) : "";
+    typed.forEach(t => { body = body ? body + C.and + t : t; });
+    let pre = "", suf = "";
+    aloneWords.forEach(w => { if (C.pre[w]) pre += C.pre[w]; else if (C.suf[w]) suf += C.suf[w]; });
+    return (excited ? L.exclOpen : "") + capFirst(pre + body) + suf + (excited ? L.endExcl : L.end);
+  }
+
+  const stripEnd = t => t.replace(/[\s.!?।…]+$/, "");   // drops the full stop so the sentence can continue
+
+  // Shown at the top of Settings, so it is easy to see whether sentences are coming from the AI or not.
+  const AI_KEYS = {"ai": "aiOn", "no-key": "aiNoKey", "ai-failed": "aiFail", "no-server": "aiNoServer"};
+  let aiSource = "";
+  function setAiStatus(source) {
+    if (source !== undefined) aiSource = AI_KEYS[source] ? source : "";
+    $("aiStatus").hidden = !aiSource;
+    $("aiStatus").textContent = aiSource ? tr(AI_KEYS[aiSource]) : "";
+  }
+
+  async function submit() {
+    clearTimeout(timer);
+    resetBar();
+    if (busy) { pending = true; return; }
+    if (!cards.length) return;
+
+    const labels = [...new Set(cards.map(c => c.label))];
+    recordUse(labels);
+    const emotion = tone;
+    cards = [];               // taps made while waiting start a new sentence
+    busy = true;
+    const mine = ++reqId;
+    render();
+
+    let text;
+    try {
+      // The user's own cards are sent with their name and meaning, so the AI can join everything into one sentence.
+      const own = labels.map(l => cardByLabel.get(l)).filter(c => c && c.custom);
+      const builtIn = labels.filter(l => !(cardByLabel.get(l) || {}).custom);
+      // One own card by itself says exactly what was typed for it: nothing to connect, so no server call.
+      if (own.length === 1 && !builtIn.length) throw new Error("own card alone");
+      const plain = t => (t || "").replace(/[|~]/g, " ");      // | and ~ are the separators in the "own" parameter
+      const ctl = new AbortController();
+      const stop = setTimeout(() => ctl.abort(), SERVER_WAIT_MS);
+      const url = "/api/combine?items=" + encodeURIComponent(builtIn.join(",")) +
+              "&emotion=" + encodeURIComponent(emotion) + "&lang=" + encodeURIComponent(lang) +
+              (own.length ? "&own=" + encodeURIComponent(own.map(c => plain(c.label) + "|" + plain(c.say)).join("~")) : "");
+      const res = await fetch(url, {signal: ctl.signal});
+      clearTimeout(stop);
+      const source = res.headers.get("X-Sentence-Source");    // "ai", "no-key" or "ai-failed"
+      if (!res.ok) {
+        // The server is fine but has no AI sentence: build it here, in the chosen language.
+        if (source) { setAiStatus(source); throw new Error("build locally"); }
+        throw new Error("Server error " + res.status);
+      }
+      text = (await res.text()).trim();
+      if (!text) throw new Error("Empty reply");
+      setAiStatus(source);
+    } catch (err) {
+      text = clientFallback(labels, emotion);   // never speak an error message
+      if (err.message !== "own card alone" && err.message !== "build locally") setAiStatus("no-server");
+    }
+
+    if (mine !== reqId) return;                 // Clear was pressed meanwhile
+    busy = false;
+    lastSpoken = text;
+    render();
+    speak(text);
+
+    sentencesSinceRefresh++;                    // one input and one output finished
+    if (sentencesSinceRefresh >= REFRESH_EVERY && !cards.length) {
+      renderPersonal();                         // never refresh while a new sentence is being built
+    }
+
+    if (cards.length) {
+      if (pending) { pending = false; submit(); } else { schedule(); }
+    }
+    pending = false;
+  }
+
+  // ---------- Favorites and frequent combinations ----------
+  // Saved only in this browser (localStorage), never sent anywhere. The lists refresh automatically after
+  // every REFRESH_EVERY spoken sentences (or when "Update now" is pressed), never while a sentence is being built.
+  const STORE_KEY = "emojitalk.usage.v1";
+  const MIN_USES = 2, MAX_FAVORITES = 6, MAX_COMBOS = 4;
+  const REFRESH_EVERY = 2;          // refresh the lists after this many spoken sentences
+  let sentencesSinceRefresh = 0;
+  const cardByLabel = new Map();
+  let usage = loadUsage();
+
+  function loadUsage() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (raw && raw.counts && raw.combos) return raw;
+    } catch (err) { /* storage unavailable: start empty */ }
+    return {counts: {}, combos: {}};
+  }
+
+  function saveUsage() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(usage)); } catch (err) {}
+  }
+
+  // Called once for every sentence that is sent to be spoken.
+  function recordUse(labels) {
+    labels.forEach(l => { usage.counts[l] = (usage.counts[l] || 0) + 1; });
+    if (labels.length >= 2 && labels.length <= MAX_EMOJIS) {
+      const key = labels.join("+");
+      usage.combos[key] = (usage.combos[key] || 0) + 1;
+    }
+    saveUsage();
+  }
+
+  function topFavorites() {
+    return Object.entries(usage.counts)
+      .filter(([label, n]) => n >= MIN_USES && cardByLabel.has(label))
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, MAX_FAVORITES)
+      .map(([label]) => cardByLabel.get(label));
+  }
+
+  function topCombos() {
+    return Object.entries(usage.combos)
+      .map(([key, n]) => [key.split("+"), n])
+      .filter(([labels, n]) => n >= MIN_USES && labels.every(l => cardByLabel.has(l)))
+      .sort((a, b) => b[1] - a[1] || a[0].join("+").localeCompare(b[0].join("+")))
+      .slice(0, MAX_COMBOS)
+      .map(([labels]) => labels.map(l => cardByLabel.get(l)));
+  }
+
+  // Group colors (g1..g4 in the styles). Unknown groups stay plain.
+  const GROUP_CLASS = {"Needs": " g1", "Answers": " g2", "Feelings": " g3", "Places and play": " g4", "My cards": " g5"};
+  const groupClass = group => GROUP_CLASS[group] || "";
+
+  function makeCard(card) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "card" + groupClass(card.group);
+    b.dataset.label = card.label;
+    const e = document.createElement("span"); e.className = "emoji"; e.textContent = card.emoji; e.setAttribute("aria-hidden", "true");
+    const l = document.createElement("span"); l.className = "label"; l.textContent = dl(card.label);
+    b.append(e, l);
+    b.onclick = () => tap(card);
+    return b;
+  }
+
+  function tapCombo(list) {
+    if (calming) stopCalm();
+    let fresh = list.filter(c => !cards.some(x => x.label === c.label));   // same emoji counts only once
+    if (cards.length + fresh.length > MAX_EMOJIS) {                        // no room: start a fresh sentence
+      cards = [];
+      fresh = list;
+    }
+    cards = cards.concat(fresh);
+    render();
+    if (fresh.length) schedule();
+  }
+
+  function addHeading(box, text) {
+    const h = document.createElement("h2");
+    h.className = "group"; h.textContent = text;
+    box.appendChild(h);
+  }
+
+  function renderPersonal() {
+    sentencesSinceRefresh = 0;
+    const box = $("personal");
+    box.textContent = "";
+    const favs = topFavorites();
+    const combos = topCombos();
+
+    if (favs.length) {
+      addHeading(box, tr("favHeading"));
+      const g = document.createElement("div");
+      g.className = "grid";
+      favs.forEach(c => g.appendChild(makeCard(c)));
+      box.appendChild(g);
+    }
+
+    if (combos.length) {
+      addHeading(box, tr("comboHeading"));
+      const row = document.createElement("div");
+      row.className = "combos";
+      combos.forEach(list => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "combo";
+        const e = document.createElement("span"); e.className = "ce"; e.textContent = list.map(c => c.emoji).join(" ");
+        const l = document.createElement("span"); l.className = "cl"; l.textContent = list.map(c => dl(c.label)).join(" + ");
+        b.append(e, l);
+        b.onclick = () => tapCombo(list);
+        row.appendChild(b);
+      });
+      box.appendChild(row);
+    }
+
+    if (favs.length || combos.length) {       // nothing is shown until there is something to show
+      const tools = document.createElement("div");
+      tools.className = "pers-tools";
+      const info = document.createElement("span");
+      info.textContent = tr("persInfo");
+      tools.append(info);
+      box.appendChild(tools);
+    }
+    syncPicked();
+
+  }
+
+  $("updateBtn").onclick = renderPersonal;
+  // Reset uses a two-step button instead of confirm(), because many browsers and preview panes block pop-up dialogs.
+  let resetArmed = false, resetTimer = null;
+  function disarmReset(label) {
+    resetArmed = false;
+    clearTimeout(resetTimer);
+    $("resetBtn").textContent = label || tr("resetFav");
+  }
+  $("resetBtn").onclick = () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      $("resetBtn").textContent = tr("tapConfirm");
+      resetTimer = setTimeout(() => disarmReset(), 4000);   // changes its mind if not tapped again
+      return;
+    }
+    disarmReset(tr("favCleared"));
+    resetTimer = setTimeout(() => disarmReset(), 2500);
+    usage = {counts: {}, combos: {}};
+    saveUsage();
+    renderPersonal();
+  };
+
+  // ---------- Two voices ----------
+  // "My voice" speaks the emoji sentences. The "calm guide" speaks the calming line,
+  // so a listener can tell who is talking. Available voices depend on the device.
+  const FEMALE = /female|samantha|zira|aria|jenny|karen|moira|tessa|victoria|susan|hazel|libby|sonia|fiona|serena|allison|ava|nova|swara|lekha|kalpana|neerja|helena|laura|sabina|monica|paulina|dalia|elvira|marisol|denise|julie|hortense|eloise|amelie|audrey|dhwani/i;
+  const MALE = /daniel|david|mark|guy|alex|fred|george|ryan|james|thomas|oliver|arthur|aaron|rishi|liam|hemant|madhur|prabhat|jorge|diego|pablo|alvaro|jean|henri|claude|paul|remy|niranjan/i;
+  let voiceList = [], voicesTouched = false, voiceLangOk = true;
+
+  function voicesAreDistinct() {
+    return !!myVoice && !!calmVoice && myVoice.voiceURI !== calmVoice.voiceURI;
+  }
+
+  function findVoice(uri) {
+    return voiceList.find(v => v.voiceURI === uri) || null;
+  }
+
+  function fillVoiceSelect(select, current) {
+    select.textContent = "";
+    voiceList.forEach(v => {
+      const o = document.createElement("option");
+      o.value = v.voiceURI;
+      o.textContent = v.name + " (" + v.lang + ")";
+      select.appendChild(o);
+    });
+    if (current) select.value = current.voiceURI;
+  }
+
+  function updateVoiceNote() {
+    const note = $("voiceNote");
+    let msg = "";
+    if (!voiceLangOk) msg = tr("noVoice").split("{0}").join(LANGS[lang].name);
+    else if (!voicesAreDistinct()) msg = tr("voiceSame");
+    note.hidden = !msg;
+    note.textContent = msg;
+  }
+
+  function loadVoices() {
+    if (!canSpeak || voicesTouched) return;
+    const all = speechSynthesis.getVoices();
+    if (!all.length) return;
+    const pre = LANGS[lang].tag.slice(0, 2);                                   // voices must match the sentence language
+    const matching = all.filter(v => v.lang.toLowerCase().replace("_", "-").startsWith(pre));
+    voiceLangOk = matching.length > 0 || lang === "en";
+    voiceList = matching.length ? matching : all;
+
+    const female = voiceList.find(v => FEMALE.test(v.name));
+    const male = voiceList.find(v => !FEMALE.test(v.name) && MALE.test(v.name));
+    myVoice = male || voiceList.find(v => v !== female) || voiceList[0];
+    calmVoice = female || voiceList.find(v => v.voiceURI !== myVoice.voiceURI) || voiceList[0];
+
+    fillVoiceSelect($("myVoice"), myVoice);
+    fillVoiceSelect($("calmGuide"), calmVoice);
+    $("voiceOpts").hidden = false;
+    updateVoiceNote();
+  }
+
+  $("myVoice").onchange = e => {
+    voicesTouched = true;
+    myVoice = findVoice(e.target.value);
+    updateVoiceNote();
+    if (!calming) speak(tr("myVoiceTest"));
+  };
+
+  $("calmGuide").onchange = e => {
+    voicesTouched = true;
+    calmVoice = findVoice(e.target.value);
+    updateVoiceNote();
+    if (!calming && canSpeak) { speechSynthesis.cancel(); speakCalm(tr("calmShort")); }
+  };
+
+  // ---------- Calm mode ----------
+  // The music is made in the browser (no files needed): a soft chord plus quiet bell notes.
+  function startMusic() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      const ctx = audioCtx, now = ctx.currentTime, end = now + CALM_SECONDS;
+      const sources = [];
+
+      const master = ctx.createGain();           // slow fade in and fade out
+      master.gain.setValueAtTime(0, now);
+      master.gain.linearRampToValueAtTime(0.16, now + 3);
+      master.gain.setValueAtTime(0.16, end - 4);
+      master.gain.linearRampToValueAtTime(0, end);
+      master.connect(ctx.destination);
+
+      const filter = ctx.createBiquadFilter();   // keeps the sound soft
+      filter.type = "lowpass";
+      filter.frequency.value = 900;
+      filter.connect(master);
+
+      const lfo = ctx.createOscillator();        // slow gentle movement
+      const lfoGain = ctx.createGain();
+      lfo.frequency.value = 0.12;
+      lfoGain.gain.value = 250;
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+      lfo.start(now); lfo.stop(end + 0.2);
+      sources.push(lfo);
+
+      [130.81, 196.0, 261.63, 329.63].forEach(freq => {   // soft pad: two slightly detuned notes each
+        [-5, 5].forEach(detune => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = "sine"; o.frequency.value = freq; o.detune.value = detune;
+          g.gain.value = 0.12;
+          o.connect(g); g.connect(filter);
+          o.start(now); o.stop(end + 0.2);
+          sources.push(o);
+        });
+      });
+
+      const bells = [523.25, 587.33, 659.25, 783.99, 880.0];   // quiet bell notes every 3 seconds
+      for (let t = 2, i = 0; t < CALM_SECONDS - 3; t += 3, i++) {
+        const o = ctx.createOscillator(), g = ctx.createGain(), at = now + t;
+        o.type = "sine"; o.frequency.value = bells[(i * 2) % bells.length];
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(0.35, at + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, at + 2.8);
+        o.connect(g); g.connect(master);
+        o.start(at); o.stop(at + 3);
+        sources.push(o);
+      }
+
+      calmNodes = {master, sources};
+    } catch (err) { /* no music, the voice still plays */ }
+  }
+
+  function stopMusic() {
+    if (!calmNodes || !audioCtx) { calmNodes = null; return; }
+    const {master, sources} = calmNodes;
+    calmNodes = null;
+    try {
+      const t = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setValueAtTime(master.gain.value, t);
+      master.gain.linearRampToValueAtTime(0, t + 0.25);   // quick fade so it doesn't click
+      sources.forEach(o => { try { o.stop(t + 0.3); } catch (err) {} });
+    } catch (err) {}
+  }
+
+  function speakCalm(text) {
+    if (!canSpeak) return;
+    const u = new SpeechSynthesisUtterance(text || tr("calmLine"));
+    if (calmVoice) { u.voice = calmVoice; u.lang = calmVoice.lang; } else u.lang = LANGS[lang].tag;
+    const distinct = voicesAreDistinct();
+    u.pitch = distinct ? 0.95 : 0.7;   // if both voices sound alike, the guide speaks lower and slower
+    u.rate = distinct ? 0.8 : 0.7;
+    u.volume = 0.9;
+    speechSynthesis.speak(u);
+  }
+
+  function startCalm() {
+    clearTimeout(timer); resetBar();
+    cards = []; busy = false; pending = false; reqId++;   // drop anything still in progress
+    if (canSpeak) speechSynthesis.cancel();
+    calming = true;
+    $("box").classList.add("calm");
+    render();
+    startMusic();
+    setTimeout(() => { if (calming) speakCalm(); }, 100);
+    calmTimer = setTimeout(stopMusic, CALM_SECONDS * 1000 + 300);
+  }
+
+  function stopCalm() {                                   // cuts the music and the voice
+    clearTimeout(calmTimer);
+    stopMusic();
+    if (calming && canSpeak) speechSynthesis.cancel();
+    calming = false;
+    $("box").classList.remove("calm");
+  }
+
+  // ---------- Settings menu ----------
+  function setMenu(open) {
+    $("menu").hidden = !open;
+    $("menuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  function setEmerg(open) {
+    $("emerg").hidden = !open;
+    $("emergBtn").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  $("menuBtn").onclick = () => { setEmerg(false); setMenu($("menu").hidden); };
+  $("emergBtn").onclick = () => { setMenu(false); setEmerg($("emerg").hidden); };
+  document.addEventListener("pointerdown", e => {           // tap outside closes the open panel
+    if (!$("menu").hidden && !$("menu").contains(e.target) && !$("menuBtn").contains(e.target)) setMenu(false);
+    if (!$("emerg").hidden && !$("emerg").contains(e.target) && !$("emergBtn").contains(e.target)) setEmerg(false);
+  });
+  document.addEventListener("keydown", e => {                // Escape closes it too
+    if (e.key !== "Escape") return;
+    if (!$("menu").hidden) { setMenu(false); $("menuBtn").focus(); }
+    if (!$("emerg").hidden) { setEmerg(false); $("emergBtn").focus(); }
+  });
+  // The panel that the dwell scroll buttons should move (or the page when none is open).
+  const scrollTarget = () => !$("menu").hidden ? $("menu") : !$("emerg").hidden ? $("emerg") : window;
+
+  // ---------- Emergency: siren and contacts ----------
+  // Contacts and the chosen siren sound are saved only in this browser (localStorage), never sent anywhere.
+  const EMERG_KEY = "emojitalk.emergency.v1";
+  const MAX_CONTACTS = 5;
+  const SIREN_SOUNDS = ["wail", "yelp", "beep"];
+  const SIREN_START = 0.04, SIREN_FULL = 1;     // loudness at the start and at full strength (1 is the most a page can output)
+  const SIREN_RISE_SECONDS = 8;                 // how long the siren takes to reach full loudness
+  let emerg = loadEmerg();
+  let sirenNodes = null;
+
+  function loadEmerg() {
+    const out = {contacts: [], sound: "wail"};
+    try {
+      const raw = JSON.parse(localStorage.getItem(EMERG_KEY) || "null");
+      if (raw && Array.isArray(raw.contacts)) {
+        out.contacts = raw.contacts
+          .filter(c => c && typeof c.name === "string" && typeof c.phone === "string")
+          .slice(0, MAX_CONTACTS);
+      }
+      if (raw && SIREN_SOUNDS.includes(raw.sound)) out.sound = raw.sound;
+    } catch (err) { /* storage unavailable: start empty */ }
+    return out;
+  }
+
+  function saveEmerg() {
+    try { localStorage.setItem(EMERG_KEY, JSON.stringify(emerg)); } catch (err) {}
+  }
+
+  // The siren is made in the browser (no files needed). It plays until it is stopped.
+  // How loud it is depends on the device's own volume, which a web page cannot change.
+  // Starts quietly and grows to full loudness, so it does not startle. "fromLevel" lets a sound change
+  // carry on from the loudness already reached instead of starting quiet again.
+  function startSiren(fromLevel) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    stopSiren();
+    if (calming) { stopCalm(); render(); }
+    if (canSpeak) speechSynthesis.cancel();
+    try {
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      const ctx = audioCtx;
+      const out = ctx.createGain();
+      const from = Math.min(SIREN_FULL, Math.max(SIREN_START, Number(fromLevel) || SIREN_START));
+      const rise = SIREN_RISE_SECONDS * Math.log(SIREN_FULL / from) / Math.log(SIREN_FULL / SIREN_START);
+      out.gain.setValueAtTime(from, ctx.currentTime);
+      if (rise > 0.05) out.gain.exponentialRampToValueAtTime(SIREN_FULL, ctx.currentTime + rise);   // sounds like a steady rise
+      out.connect(ctx.destination);
+      const osc = ctx.createOscillator(), lfo = ctx.createOscillator(), depth = ctx.createGain();
+      osc.type = "square";                                   // a harsh tone that carries well
+      lfo.connect(depth);
+      if (emerg.sound === "beep") {                          // steady high tone switched on and off
+        const gate = ctx.createGain();
+        gate.gain.value = 0.5;
+        osc.frequency.value = 1900;
+        lfo.type = "square"; lfo.frequency.value = 2.5; depth.gain.value = 0.5;
+        depth.connect(gate.gain);
+        osc.connect(gate); gate.connect(out);
+      } else {                                               // pitch sweeps up and down
+        const fast = emerg.sound === "yelp";
+        osc.frequency.value = fast ? 1100 : 950;
+        lfo.type = fast ? "sawtooth" : "triangle";
+        lfo.frequency.value = fast ? 3.5 : 0.3;
+        depth.gain.value = fast ? 400 : 350;
+        depth.connect(osc.frequency);
+        osc.connect(out);
+      }
+      osc.start(); lfo.start();
+      sirenNodes = {out, sources: [osc, lfo]};
+    } catch (err) { sirenNodes = null; }
+    updateSirenUI();
+  }
+
+  function stopSiren() {
+    if (sirenNodes) {
+      sirenNodes.sources.forEach(o => { try { o.stop(); } catch (err) {} });
+      try { sirenNodes.out.disconnect(); } catch (err) {}
+      sirenNodes = null;
+    }
+    updateSirenUI();
+  }
+
+  function updateSirenUI() {
+    const on = !!sirenNodes;
+    $("sirenBtn").textContent = tr(on ? "sirenStop" : "sirenStart");
+    $("sirenBtn").classList.toggle("on", on);
+    $("sirenBtn").setAttribute("aria-pressed", on ? "true" : "false");
+    $("emergBtn").classList.toggle("on", on);                // the top-left button flashes while the siren plays
+  }
+
+  $("sirenBtn").onclick = () => { if (sirenNodes) stopSiren(); else startSiren(); };   // a fresh start is always quiet
+  $("sirenSound").value = emerg.sound;
+  $("sirenSound").onchange = e => {
+    emerg.sound = SIREN_SOUNDS.includes(e.target.value) ? e.target.value : "wail";
+    saveEmerg();
+    if (sirenNodes) startSiren(sirenNodes.out.gain.value);   // switch sound straight away, at the loudness already reached
+  };
+
+  const dialable = phone => phone.replace(/[^\d+]/g, "");
+
+  function renderContacts() {
+    const box = $("contactList");
+    box.textContent = "";
+    emerg.contacts.forEach((c, i) => {
+      const row = document.createElement("div"); row.className = "contact";
+      const who = document.createElement("div"); who.className = "who"; who.textContent = c.name;
+      const num = document.createElement("span"); num.textContent = c.phone; who.appendChild(num);
+      const call = document.createElement("button");
+      call.type = "button"; call.className = "call"; call.textContent = tr("cCall");
+      call.setAttribute("aria-label", tr("cCall") + " " + c.name);
+      call.onclick = () => { stopSiren(); location.href = "tel:" + dialable(c.phone); };   // opens the phone's dialer
+      const del = document.createElement("button");
+      del.type = "button"; del.className = "del"; del.textContent = "\u2715";
+      del.setAttribute("aria-label", tr("cRemove") + " " + c.name);
+      del.onclick = () => { emerg.contacts.splice(i, 1); saveEmerg(); renderContacts(); };
+      row.append(who, call, del);
+      box.appendChild(row);
+    });
+    const full = emerg.contacts.length >= MAX_CONTACTS;
+    $("contactForm").hidden = full;                          // no more than MAX_CONTACTS
+    $("contactNote").textContent = full ? tr("cMax") : emerg.contacts.length ? "" : tr("cNone");
+    $("contactNote").hidden = !$("contactNote").textContent;
+  }
+
+  // A plain button (not a form), because some preview panes block form submission.
+  function contactError(key) {
+    $("contactNote").textContent = tr(key);
+    $("contactNote").hidden = false;
+  }
+
+  function addContact() {
+    if (emerg.contacts.length >= MAX_CONTACTS) return;
+    const name = $("cName").value.trim(), phone = $("cPhone").value.trim();
+    const nameOk = name.length > 0;
+    const phoneOk = /^[\d\s()+.-]+$/.test(phone) && dialable(phone).replace("+", "").length >= 3;
+    $("cName").setAttribute("aria-invalid", nameOk ? "false" : "true");
+    $("cPhone").setAttribute("aria-invalid", phoneOk ? "false" : "true");
+    if (!nameOk) { contactError("cBadName"); $("cName").focus(); return; }
+    if (!phoneOk) { contactError("cBadPhone"); $("cPhone").focus(); return; }
+    emerg.contacts.push({name, phone});
+    saveEmerg();
+    $("cName").value = ""; $("cPhone").value = "";
+    renderContacts();
+  }
+  $("cAddBtn").onclick = addContact;
+  ["cName", "cPhone"].forEach(id => {
+    $(id).onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); addContact(); } };
+  });
+
+  // ---------- Actions ----------
+  function tap(card) {
+    if (calming) stopCalm();            // tapping an emoji cuts the music and voice
+    if (cards.some(c => c.label === card.label)) return;   // same emoji counts only once per sentence
+    cards.push(card);
+    if (cards.length > MAX_EMOJIS) { startCalm(); return; }
+    render();
+    schedule();                         // only a NEW emoji gets here, so the countdown restarts only for new ones
+  }
+
+  $("speakBtn").onclick = () => {
+    if (calming) stopCalm();
+    if (cards.length || busy) submit(); else speak(lastSpoken);
+  };
+
+  $("undoBtn").onclick = () => {
+    if (!cards.length) return;
+    cards.pop();
+    render();
+    if (cards.length) schedule(); else { clearTimeout(timer); resetBar(); }
+  };
+
+  $("clearBtn").onclick = () => {
+    stopCalm();
+    clearTimeout(timer); resetBar();
+    cards = []; lastSpoken = ""; busy = false; pending = false; reqId++;
+    if (canSpeak) speechSynthesis.cancel();
+    render();
+  };
+
+  $("delay").onchange = e => {
+    delaySec = Number(e.target.value);
+    if (delaySec === 0) { clearTimeout(timer); resetBar(); } else schedule();
+  };
+
+  // ---------- Dwell, large buttons and webcam eye tracking ----------
+  // Dwell: holding the pointer (mouse, head mouse or eye tracker) on a button for a moment presses it.
+  // Eye tracking runs fully inside this page (MediaPipe Face Landmarker). Video is never uploaded or recorded.
+  const PREF_KEY = "emojitalk.prefs.v1";
+  let dwellOn = false, dwellMs = 1500, gazeOn = false, calibrating = false;
+  let px = -1, py = -1, dTarget = null, dStart = 0, dLocked = null, hist = [];
+  const ring = $("dwellRing"), dot = $("gazeDot");
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function prime() {                       // speech must be unlocked by a real tap or click first
+    if (unlocked || !canSpeak) return;
+    speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    unlocked = true;
+  }
+
+  document.addEventListener("pointermove", e => {
+    if (!gazeOn) { px = e.clientX; py = e.clientY; }
+  });
+
+  function pointAt() {
+    if (!dwellOn || px < 0) { dTarget = null; return; }
+    const el = document.elementFromPoint(px, py);
+    const t = el && el.closest("button");
+    if (!t || t.disabled || t.classList.contains("scroll-btn")) { dTarget = null; dLocked = null; return; }
+    if (t !== dLocked) dLocked = null;
+    if (t !== dTarget) { dTarget = t; dStart = performance.now(); }
+  }
+
+  // Looking at the ▲ / ▼ buttons scrolls the page (or the settings panel when it is open) while the pointer stays on them.
+  const SCROLL_SPEED = 10;
+  function scrollStep() {
+    const up = $("scrollUp"), down = $("scrollDown");
+    let dir = 0;
+    if (dwellOn && px >= 0) {
+      const el = document.elementFromPoint(px, py);
+      const b = el && el.closest(".scroll-btn");
+      if (b) dir = b === up ? -1 : 1;
+    }
+    up.classList.toggle("hot", dir < 0);
+    down.classList.toggle("hot", dir > 0);
+    if (dir) scrollTarget().scrollBy(0, dir * SCROLL_SPEED);
+  }
+  $("scrollUp").onclick = () => scrollTarget().scrollBy({top: -300, behavior: "smooth"});
+  $("scrollDown").onclick = () => scrollTarget().scrollBy({top: 300, behavior: "smooth"});
+
+  function dwellLoop() {
+    scrollStep();
+    pointAt();
+    if (dwellOn && dTarget && dTarget !== dLocked && document.body.contains(dTarget)) {
+      const r = dTarget.getBoundingClientRect();
+      const need = dwellMs * (dTarget.id === "clearBtn" ? 1.6 : 1);   // Clear needs a longer look
+      const p = Math.min(1, (performance.now() - dStart) / need);
+      ring.style.left = r.left + "px"; ring.style.top = r.top + "px";
+      ring.style.width = r.width + "px"; ring.style.height = r.height + "px";
+      ring.style.setProperty("--p", p);
+      ring.hidden = false;
+      if (p >= 1) { dLocked = dTarget; ring.hidden = true; dTarget.click(); }
+    } else {
+      ring.hidden = true;
+    }
+    requestAnimationFrame(dwellLoop);
+  }
+
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREF_KEY, JSON.stringify({
+        big: $("bigToggle").checked, mode: $("selMode").value, dwell: $("dwellTime").value,
+        gaze: $("gazeToggle").checked, sens: $("gazeSens").value, lang: lang, theme: themePref}));
+    } catch (err) {}
+  }
+
+  function applyPrefs() {
+    document.body.classList.toggle("big", $("bigToggle").checked);
+    dwellOn = $("selMode").value === "dwell";
+    dwellMs = Number($("dwellTime").value);
+    document.body.classList.toggle("dwelling", dwellOn);
+    $("scrollUp").hidden = $("scrollDown").hidden = !dwellOn;
+    sens = SENS[$("gazeSens").value] || SENS.lower;
+    dTarget = null; dLocked = null;
+  }
+
+  ["bigToggle", "selMode", "dwellTime", "gazeSens"].forEach(id => {
+    $(id).onchange = () => { prime(); applyPrefs(); savePrefs(); };
+  });
+
+  function gazeMsg(text) {
+    $("gazeMsg").hidden = !text;
+    $("gazeMsg").textContent = text || "";
+  }
+
+  // ---------- Private, on-device eye tracking (MediaPipe Face Landmarker) ----------
+  // Video frames are processed in this page only. Nothing is uploaded or recorded.
+  const MP_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+  const MP_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+  const MODEL_KEY = "emojitalk.gazeModel.v2";   // stores only regression numbers, never images
+  const video = $("gazeVideo");
+
+  let landmarker = null, stream = null, loopOn = false, lastT = -1;
+  let feat = null, featN = 0, faceSeen = 0, frames = 0, fps = 0, fpsT = performance.now(), noFaceWarned = false;
+  let sx = -1, sy = -1;
+  let gazeModel = loadModel();
+  const isCalibrated = () => !!gazeModel;
+
+  // Landmark indices: iris points, eye corners (a = left side of image, b = right), upper and lower lid.
+  const EYES = [
+    {iris: [468, 469, 470, 471, 472], a: 33,  b: 133, top: 159, bot: 145},
+    {iris: [473, 474, 475, 476, 477], a: 362, b: 263, top: 386, bot: 374}
+  ];
+
+  function loadModel() {
+    try {
+      const m = JSON.parse(localStorage.getItem(MODEL_KEY) || "null");
+      if (m && m.wx && m.wy && m.mu && m.sd) return m;
+    } catch (err) {}
+    return null;
+  }
+
+  // Returns an array of features, false for a blink, or null when no face is found.
+  function features(res) {
+    const lm = res.faceLandmarks && res.faceLandmarks[0];
+    if (!lm || lm.length < 478) return null;
+    const W = video.videoWidth, H = video.videoHeight;
+    const P = i => [lm[i].x * W, lm[i].y * H];
+    let h = 0, v = 0, open = 0;
+    for (const e of EYES) {
+      const a = P(e.a), b = P(e.b);
+      let ix = 0, iy = 0;
+      e.iris.forEach(i => { const p = P(i); ix += p[0] / 5; iy += p[1] / 5; });
+      const ax = b[0] - a[0], ay = b[1] - a[1], w = Math.hypot(ax, ay);
+      const ux = ax / w, uy = ay / w;                          // direction along the eye
+      const dx = ix - (a[0] + b[0]) / 2, dy = iy - (a[1] + b[1]) / 2;
+      h += (dx * ux + dy * uy) / w;                            // iris sideways offset, in eye widths
+      v += (-dx * uy + dy * ux) / w;                           // iris up/down offset
+      const t = P(e.top), bo = P(e.bot);
+      open += Math.hypot(t[0] - bo[0], t[1] - bo[1]) / w;
+    }
+    h /= 2; v /= 2; open /= 2;
+    if (open < 0.1) return false;                              // blink: iris hidden, skip this frame
+
+    let yaw = 0, pitch = 0;                                    // head rotation from the face transform
+    const m = res.facialTransformationMatrixes && res.facialTransformationMatrixes[0];
+    if (m && m.data) {
+      yaw = Math.atan2(-m.data[2], Math.hypot(m.data[6], m.data[10]));
+      pitch = Math.atan2(m.data[6], m.data[10]);
+    }
+    return [h, v, yaw, pitch, lm[1].x, lm[1].y, open];
+  }
+
+  const expand = f => { const [h, v, yw, pt, nx, ny, op] = f; return [h, v, yw, pt, nx, ny, op, h * v, h * h, v * v]; };
+
+  function ridge(X, y, lam) {                                  // solves (XtX + lam*I) w = Xty
+    const n = X[0].length;
+    const A = Array.from({length: n}, () => new Array(n + 1).fill(0));
+    for (let r = 0; r < X.length; r++) {
+      for (let i = 0; i < n; i++) {
+        A[i][n] += X[r][i] * y[r];
+        for (let j = 0; j < n; j++) A[i][j] += X[r][i] * X[r][j];
+      }
+    }
+    for (let i = 1; i < n; i++) A[i][i] += lam;                // bias term is not penalised
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      [A[c], A[p]] = [A[p], A[c]];
+      const d = A[c][c] || 1e-9;
+      for (let j = c; j <= n; j++) A[c][j] /= d;
+      for (let r = 0; r < n; r++) {
+        if (r === c) continue;
+        const f = A[r][c];
+        if (!f) continue;
+        for (let j = c; j <= n; j++) A[r][j] -= f * A[c][j];
+      }
+    }
+    return A.map(r => r[n]);
+  }
+
+  function design(f, mu, sd) { return [1, ...expand(f).map((v, i) => (v - mu[i]) / sd[i])]; }
+  const dotp = (w, z) => w.reduce((s, wi, i) => s + wi * z[i], 0);
+
+  function fitModel(samples) {
+    const E = samples.map(s => expand(s.f));
+    const k = E[0].length;
+    const mu = [], sd = [];
+    for (let i = 0; i < k; i++) {
+      const col = E.map(r => r[i]);
+      const m = col.reduce((a, b) => a + b, 0) / col.length;
+      mu.push(m);
+      sd.push(Math.sqrt(col.reduce((a, b) => a + (b - m) ** 2, 0) / col.length) || 1);
+    }
+    const X = samples.map(s => design(s.f, mu, sd));
+    const wx = ridge(X, samples.map(s => s.x), 2);             // targets are screen fractions 0..1
+    const wy = ridge(X, samples.map(s => s.y), 2);
+    return {mu, sd, wx, wy};
+  }
+
+  function predict(f) {
+    const z = design(f, gazeModel.mu, gazeModel.sd);
+    return [dotp(gazeModel.wx, z) * innerWidth, dotp(gazeModel.wy, z) * innerHeight];
+  }
+
+  // Sensitivity: "a" is how fast the dot follows the eyes (smaller = smoother and slower),
+  // "dead" is a radius in pixels inside which small eye movements are ignored.
+  const SENS = {
+    normal: {a: 0.30, dead: 0},
+    lower:  {a: 0.15, dead: 25},
+    low:    {a: 0.08, dead: 45},
+    lowest: {a: 0.04, dead: 70}
+  };
+  let sens = SENS.lower;
+
+  function moveGaze(f) {
+    let [tx, ty] = predict(f);
+    tx = Math.max(0, Math.min(innerWidth - 1, tx));
+    ty = Math.max(0, Math.min(innerHeight - 1, ty));
+    if (sx < 0) { sx = tx; sy = ty; }
+    else if (Math.hypot(tx - sx, ty - sy) > sens.dead) { sx += (tx - sx) * sens.a; sy += (ty - sy) * sens.a; }   // smoothing + dead zone
+    px = sx; py = sy;
+    dot.style.left = px + "px"; dot.style.top = py + "px"; dot.hidden = false;
+    dot.classList.remove("waiting");
+  }
+
+  function loop() {
+    if (!loopOn) return;
+    if (landmarker && video.readyState >= 2 && video.currentTime !== lastT) {
+      lastT = video.currentTime;
+      let res = null;
+      try { res = landmarker.detectForVideo(video, performance.now()); } catch (err) {}
+      frames++;
+      const now = performance.now();
+      if (now - fpsT >= 1000) { fps = frames; frames = 0; fpsT = now; }
+      const f = res ? features(res) : null;
+      if (f) {
+        feat = f; featN++; faceSeen = now; noFaceWarned = false;
+        if (gazeModel && !calibrating) moveGaze(f);
+      } else if (f === false) {
+        faceSeen = now;                                        // blinking: the face is still there
+      } else if (now - faceSeen > 1500) {
+        dot.classList.add("waiting");
+        if (!noFaceWarned && !calibrating) {
+          noFaceWarned = true;
+          gazeMsg(tr("gzNoFace"));
+        }
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  async function createLandmarker() {
+    const mp = await import(MP_BASE + "/vision_bundle.mjs");
+    const fileset = await mp.FilesetResolver.forVisionTasks(MP_BASE + "/wasm");
+    const make = delegate => mp.FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: {modelAssetPath: MP_MODEL, delegate},
+      runningMode: "VIDEO", numFaces: 1, outputFacialTransformationMatrixes: true
+    });
+    try { return await make("GPU"); } catch (err) { return await make("CPU"); }
+  }
+
+  function gazeFail(text) {
+    $("gazeToggle").checked = false;
+    stopGaze(true);
+    gazeMsg("⚠️ " + text);
+  }
+
+  async function startGaze() {
+    prime();
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      gazeFail(tr("gzInsecure"));
+      return;
+    }
+    gazeMsg(tr("gzAsk"));
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480, facingMode: "user"}, audio: false});
+    } catch (err) {
+      const n = err && err.name;
+      gazeFail(n === "NotAllowedError" ? tr("gzBlocked")
+             : n === "NotFoundError" ? tr("gzNoCam")
+             : n === "NotReadableError" ? tr("gzBusy")
+             : tr("gzOpenFail").replace("{0}", n || "unknown error"));
+      return;
+    }
+    gazeMsg(tr("gzLoading"));
+    try {
+      landmarker = await createLandmarker();
+      video.srcObject = stream;
+      video.hidden = false;
+      await video.play();
+    } catch (err) {
+      console.error(err);
+      gazeFail(tr("gzStartFail").replace("{0}", (err && err.message) || err));
+      return;
+    }
+    gazeOn = true; loopOn = true; lastT = -1; faceSeen = performance.now(); sx = sy = -1;
+    dot.style.left = innerWidth / 2 + "px"; dot.style.top = innerHeight / 2 + "px"; dot.hidden = false;
+    dot.classList.add("waiting");                               // grey until a gaze estimate arrives
+    $("selMode").value = "dwell"; applyPrefs(); savePrefs();    // eye tracking needs dwell to click
+    $("calibBtn").hidden = false;
+    gazeMsg(tr("gzReady"));
+    requestAnimationFrame(loop);
+  }
+
+  function stopGaze(keepMsg) {
+    gazeOn = false; loopOn = false; calibrating = false; feat = null;
+    dot.hidden = true; $("calib").hidden = true;
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null; video.hidden = true;
+    if (landmarker) { try { landmarker.close(); } catch (err) {} landmarker = null; }
+    $("calibBtn").hidden = true;
+    if (keepMsg !== true) gazeMsg("");
+    savePrefs();
+  }
+
+  // Live readout in settings while eye tracking is on.
+  setInterval(() => {
+    const box = $("gazeDebug");
+    box.hidden = !gazeOn;
+    if (!gazeOn) return;
+    box.textContent = tr("dbgFps") + ": " + fps + " | " + tr("dbgFace") + ": " + ((performance.now() - faceSeen) < 1500 ? tr("yes") : tr("no")) +
+                      " | " + tr("dbgCal") + ": " + (isCalibrated() ? tr("yes") : tr("no"));
+  }, 500);
+
+  // 9-point calibration. Only numbers are kept (never images), and only in this browser.
+  async function calibrate() {
+    if (!gazeOn || calibrating) return;
+    calibrating = true;
+    hist = []; sx = sy = -1;
+    setMenu(false);
+    $("calib").hidden = false;
+    const pts = [[.1,.1],[.5,.1],[.9,.1],[.1,.5],[.5,.5],[.9,.5],[.1,.9],[.5,.9],[.9,.9]];
+    const samples = [];
+    let finished = true;
+    for (const [fx, fy] of pts) {
+      if (!calibrating) { finished = false; break; }
+      $("calibDot").style.left = fx * innerWidth + "px"; $("calibDot").style.top = fy * innerHeight + "px";
+      await sleep(1200);                                       // time to find the dot
+      let lastN = featN;
+      for (let i = 0; i < 30 && calibrating; i++) {
+        await sleep(60);
+        if (feat && featN !== lastN) { lastN = featN; samples.push({f: feat.slice(), x: fx, y: fy}); }
+      }
+    }
+    if (!calibrating) finished = false;                        // tapping the overlay stops it early
+    calibrating = false;
+    $("calib").hidden = true;
+    if (finished && samples.length >= 60) {
+      try {
+        gazeModel = fitModel(samples);
+        try { localStorage.setItem(MODEL_KEY, JSON.stringify(gazeModel)); } catch (err) {}
+        gazeMsg(tr("gzCalDone"));
+      } catch (err) {
+        console.error(err);
+        gazeMsg(tr("gzCalFail"));
+      }
+    } else if (finished) {
+      gazeMsg(tr("gzCalSeen"));
+    } else {
+      gazeMsg(tr("gzCalStop"));
+    }
+  }
+
+  // Runs after eye tracking starts: calibrate only if nothing is saved yet.
+  function afterGazeStart() {
+    if (!gazeOn) return;
+    if (!isCalibrated()) { setTimeout(calibrate, 1500); return; }
+    gazeMsg(tr("gzSaved"));
+  }
+
+  $("calib").onclick = () => { calibrating = false; $("calib").hidden = true; };
+  $("calibBtn").onclick = calibrate;
+  $("gazeToggle").onchange = e => {
+    if (e.target.checked) startGaze().then(() => { savePrefs(); afterGazeStart(); });
+    else stopGaze();
+  };
+
+  let resumeGaze = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREF_KEY) || "null");
+    if (saved) {
+      $("bigToggle").checked = !!saved.big;
+      if (saved.mode) $("selMode").value = saved.mode;
+      if (saved.dwell) $("dwellTime").value = saved.dwell;
+      if (saved.sens && SENS[saved.sens]) $("gazeSens").value = saved.sens;
+      if (saved.lang && LANGS[saved.lang]) lang = saved.lang;
+      if (["system", "light", "dark"].includes(saved.theme)) themePref = saved.theme;
+      if (saved.gaze) resumeGaze = true;
+    }
+  } catch (err) {}
+  $("langSel").value = lang;
+  document.documentElement.lang = lang;
+  $("themeSel").value = themePref;
+  applyTheme();
+  $("themeSel").onchange = e => {
+    themePref = ["light", "dark"].includes(e.target.value) ? e.target.value : "system";
+    applyTheme();
+    savePrefs();
+  };
+  applyPrefs();
+  if (resumeGaze) { $("gazeToggle").checked = true; startGaze().then(afterGazeStart); }
+  requestAnimationFrame(dwellLoop);
+
+  // ---------- Start ----------
+  let allCards = [];
+  function buildGrid() {                                   // (re)builds the emoji cards in the current language
+    const root = $("grid");
+    root.textContent = "";
+    const sections = new Map();   // group name -> its grid
+    allCards.forEach(card => {
+      const group = typeof card.group === "string" ? card.group : "";
+      if (!sections.has(group)) {
+        if (group) {
+          const h = document.createElement("h2");
+          h.className = "group" + groupClass(group); h.textContent = (GROUPS[lang] && GROUPS[lang][group]) || group;
+          root.appendChild(h);
+        }
+        const g = document.createElement("div");
+        g.className = "grid";
+        root.appendChild(g);
+        sections.set(group, g);
+      }
+      sections.get(group).appendChild(makeCard(card));
+    });
+  }
+
+  function applyLang() {                                   // updates every piece of text to the chosen language
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-t]").forEach(el => { el.textContent = tr(el.dataset.t); });
+    document.querySelectorAll("[data-ta]").forEach(el => { el.setAttribute("aria-label", tr(el.dataset.ta)); });
+    document.querySelectorAll(".tone").forEach(fillTone);
+    $("badge").textContent = tr("badge") + TONES[tone].icon + " " + tr("tone_" + tone);
+    if (!canSpeak) $("note").textContent = tr("noSpeech");
+    updateVoiceNote();
+    setAiStatus();
+    updateSirenUI();
+    renderContacts();
+    renderCustomList();
+    buildGrid();
+    renderPersonal();
+    render();
+  }
+
+  $("langSel").onchange = e => {
+    lang = LANGS[e.target.value] ? e.target.value : "en";
+    stopCalm();
+    if (canSpeak) speechSynthesis.cancel();
+    clearTimeout(timer); resetBar();
+    cards = []; lastSpoken = ""; busy = false; pending = false; reqId++;
+    voicesTouched = false; myVoice = null; calmVoice = null;
+    loadVoices();                                          // pick voices that match the new language
+    applyLang();
+    savePrefs();
+    prime();
+    speak(tr("hello"));                                    // lets the person hear the new voice
+  };
+
+  // ---------- My cards (added by the user) ----------
+  // Any emoji from the device keyboard, with a name and (optionally) the sentence it should say.
+  // Saved only in this browser. The built-in cards are never changed, so removing these gives the original board back.
+  // When one is used in a sentence, its name and meaning are sent to the server so the AI can connect it with the other cards.
+  const CUSTOM_KEY = "emojitalk.customCards.v1";
+  const MAX_CUSTOM = 20, CUSTOM_GROUP = "My cards";
+  let baseCards = [];                                      // the built-in cards (from the server or DEFAULT_CARDS)
+  let customCards = loadCustom();
+  let EMOJI_RE;
+  try { EMOJI_RE = new RegExp("\\p{Extended_Pictographic}|\\p{Regional_Indicator}|\\u20E3", "u"); }
+  catch (err) { EMOJI_RE = /[^\x00-\x7F]/; }                 // older browsers: accept any non-keyboard symbol
+
+  function loadCustom() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "null");
+      if (Array.isArray(raw)) {
+        return raw
+          .filter(c => c && typeof c.emoji === "string" && c.emoji && typeof c.label === "string" && c.label.trim() && !/[+,]/.test(c.label))
+          .slice(0, MAX_CUSTOM)
+          .map(c => ({emoji: c.emoji, label: c.label.trim(), say: typeof c.say === "string" ? c.say : "", group: CUSTOM_GROUP, custom: true}));
+      }
+    } catch (err) { /* storage unavailable: start with none */ }
+    return [];
+  }
+
+  function saveCustom() {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customCards.map(c => ({emoji: c.emoji, label: c.label, say: c.say})))); } catch (err) {}
+  }
+
+  // The full board: the user's cards first, then the built-in ones. A built-in name always wins a clash.
+  function rebuildCards() {
+    const taken = new Set(baseCards.map(c => c.label.toLowerCase()));
+    allCards = customCards.filter(c => !taken.has(c.label.toLowerCase())).concat(baseCards);
+    cardByLabel.clear();
+    allCards.forEach(c => cardByLabel.set(c.label, c));
+  }
+
+  function refreshBoard() {
+    rebuildCards();
+    cards = cards.filter(c => cardByLabel.has(c.label));    // drop a removed card from the sentence being built
+    if (!cards.length) { clearTimeout(timer); resetBar(); }
+    buildGrid();
+    renderPersonal();
+    renderCustomList();
+    render();
+  }
+
+  function firstEmoji(text) {                              // keeps one emoji, even if several were typed
+    text = text.trim();
+    if (!text) return "";
+    let one = text;
+    try {
+      if (window.Intl && Intl.Segmenter) one = [...new Intl.Segmenter().segment(text)][0].segment;
+    } catch (err) {}
+    return EMOJI_RE.test(one) ? one : "";
+  }
+
+  function customNote(key) {
+    $("customNote").textContent = key ? tr(key) : "";
+    $("customNote").hidden = !key;
+  }
+
+  function renderCustomList() {
+    const box = $("customList");
+    box.textContent = "";
+    customCards.forEach((c, i) => {
+      const row = document.createElement("div"); row.className = "contact";
+      const em = document.createElement("span"); em.className = "ce2"; em.textContent = c.emoji; em.setAttribute("aria-hidden", "true");
+      const who = document.createElement("div"); who.className = "who"; who.textContent = c.label;
+      if (c.say) { const say = document.createElement("span"); say.textContent = c.say; who.appendChild(say); }
+      const del = document.createElement("button");
+      del.type = "button"; del.className = "del"; del.textContent = "✕";
+      del.setAttribute("aria-label", tr("cRemove") + " " + c.label);
+      del.onclick = () => { customCards.splice(i, 1); saveCustom(); refreshBoard(); };
+      row.append(em, who, del);
+      box.appendChild(row);
+    });
+    const full = customCards.length >= MAX_CUSTOM;
+    $("customForm").hidden = full;
+    $("mcResetBtn").hidden = !customCards.length;
+    customNote(full ? "mcMax" : customCards.length ? "" : "mcNone");
+  }
+
+  function addCustomCard() {
+    if (customCards.length >= MAX_CUSTOM) return;
+    const emoji = firstEmoji($("mcEmoji").value);
+    const name = $("mcName").value.trim().replace(/\s+/g, " ");
+    const say = $("mcSay").value.trim();
+    const lower = name.toLowerCase();
+    const clash = [...cardByLabel.keys()].some(l => l.toLowerCase() === lower || dl(l).toLowerCase() === lower);
+    const problem = !emoji ? ["mcEmoji", "mcBadEmoji"]
+                  : !name ? ["mcName", "cBadName"]
+                  : /[+,]/.test(name) ? ["mcName", "mcBadChars"]
+                  : clash ? ["mcName", "mcDup"] : null;
+    ["mcEmoji", "mcName"].forEach(id => $(id).setAttribute("aria-invalid", problem && problem[0] === id ? "true" : "false"));
+    if (problem) { customNote(problem[1]); $(problem[0]).focus(); return; }
+    customCards.push({emoji, label: name, say, group: CUSTOM_GROUP, custom: true});
+    saveCustom();
+    $("mcEmoji").value = ""; $("mcName").value = ""; $("mcSay").value = "";
+    refreshBoard();
+  }
+  $("mcAddBtn").onclick = addCustomCard;
+  ["mcEmoji", "mcName", "mcSay"].forEach(id => {
+    $(id).onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); addCustomCard(); } };
+  });
+
+  // "Remove all my cards" goes back to the original board. Two taps, like Reset favorites.
+  let mcArmed = false, mcTimer = null;
+  $("mcResetBtn").onclick = () => {
+    clearTimeout(mcTimer);
+    if (!mcArmed) {
+      mcArmed = true;
+      $("mcResetBtn").textContent = tr("tapConfirm");
+      mcTimer = setTimeout(() => { mcArmed = false; $("mcResetBtn").textContent = tr("mcReset"); }, 4000);
+      return;
+    }
+    mcArmed = false;
+    $("mcResetBtn").textContent = tr("mcReset");
+    customCards = [];
+    saveCustom();
+    refreshBoard();
+    customNote("mcResetDone");
+  };
+
+  async function loadCards() {
+    let list = DEFAULT_CARDS;
+    try {
+      const res = await fetch("/api/emojis");
+      if (res.headers.get("X-AI") === "off") setAiStatus("no-key");
+      if (res.ok) {
+        const data = await res.json();
+        const ok = Array.isArray(data) ? data.filter(c => c && typeof c.emoji === "string" && typeof c.label === "string") : [];
+        if (ok.length) list = ok;
+      }
+    } catch (err) { setAiStatus("no-server"); /* use the built-in list */ }
+
+    baseCards = list;
+    refreshBoard();
+  }
+
+  if (!canSpeak) {
+    $("note").hidden = false;
+    $("note").textContent = tr("noSpeech");
+  }
+  if (canSpeak) {
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;   // voices often load a moment after the page
+    setTimeout(loadVoices, 1000);
+  }
+  buildTones();
+  setTone("Calm", false);
+  applyLang();
+  loadCards();
+</script>
+</body>
+</html>
