@@ -52,7 +52,7 @@ public class EmojiWebServer {
 
     // Models are tried in order. Set GEMINI_MODEL (comma-separated) to change them.
     private static final List<String> GEMINI_MODELS = Arrays.stream(
-                    envOrDefault("GEMINI_MODEL", "gemini-3.7-flash,gemini-3.8-flash").split(","))
+                    envOrDefault("GEMINI_MODEL", "gemini-3.5-flash-lite,gemini-3.8-flash").split(","))
             .map(String::trim)
             .filter(m -> !m.isEmpty())
             .toList();
