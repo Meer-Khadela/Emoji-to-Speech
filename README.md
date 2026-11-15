@@ -33,6 +33,12 @@ I found that a standard AAC device paired with an eye tracker costs approximatel
 - Picked cards are marked with a thick frame and a tick
 - Screen-reader labels and reduced-motion support
 
+> **Eye tracking is experimental.** It uses the device's front camera and is much
+> less precise than a dedicated eye tracker. It currently works on laptops and
+> iPads only. Phones are not supported, because the screen is too small for the
+> tracking to tell the cards apart. Accuracy also depends on lighting, camera
+> quality and how still the user's head is, so always recalibrate before use.
+
 **Calm mode**
 - Tapping a fourth card clears the sentence, plays soft generated music and speaks a calming line in a second voice
 
