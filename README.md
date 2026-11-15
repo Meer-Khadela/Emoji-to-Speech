@@ -151,6 +151,13 @@ Emoji-to-Speech is a communication aid, not a medical or safety device. Do not r
 | `README.md` | This file |
 | `LICENSE` | MIT License |
 
+## Credits
+
+- **Eye tracking** uses [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) by Google (Apache 2.0), loaded from a CDN at run time.
+- **AI sentences** are written by the [Google Gemini API](https://ai.google.dev/).
+- **Development:** built with the help of Claude, an AI assistant by Anthropic.
+- **Thanks** to the teachers and students of the special school where I trained, who showed me why this was needed.
+
 ## License
 
 Released under the MIT License. See the [LICENSE](LICENSE) file for the full text.
